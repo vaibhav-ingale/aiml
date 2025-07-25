@@ -4,7 +4,7 @@ from langchain_ollama.llms import OllamaLLM
 
 template = """Question: {question}
 
-Answer: Let's think step by step to understand like highschool student."""
+Answer: Understand like highschool student"""
 
 prompt = ChatPromptTemplate.from_template(template)
 
