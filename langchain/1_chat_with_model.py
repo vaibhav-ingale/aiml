@@ -21,6 +21,18 @@ model_name = models[model_index].model
 model = OllamaLLM(model=model_name, temperature=0.1, max_tokens=1000)
 chain = prompt | model
 
-resp = chain.invoke({"question": "What is Bias and Variance?"})
+# Crete series of questions
+questions = [
+    "What is the capital of France?",
+    "What is the largest mammal?",
+    "What is the speed of light?",
+    "What is the meaning of life?",
+    "What is the Fibonacci sequence?",
+]
+for question in questions:
+    resp = chain.invoke({"question": question})
+    print(f"Question: {question}\nAnswer: {resp}\n")
+# Example usage
+print("Generating a specific question response:")
 
 print(resp)
