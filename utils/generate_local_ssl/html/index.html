@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLflow HTTPS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .cert-info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .domain {
+            color: #FFD700;
+            font-weight: bold;
+        }
+        pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MLflow HTTPS Test</h1>
+        <p class="success">HTTPS is working successfully!</p>
+        
+        <div class="cert-info">
+            <h2>Certificate Information</h2>
+            <p><strong>Domain:</strong> <span class="domain">mlflow.lab</span></p>
+            <p><strong>Certificate:</strong> mlflow.lab-cert.pem</p>
+            <p><strong>Issuer:</strong> Vizen Lab CA</p>
+        </div>
+        
+        <h2>Test Commands</h2>
+        <pre>
+# Test the HTTPS endpoint
+curl -k https://mlflow.lab/
+curl -k https://mlflow.lab/health
+
+# Test with specific CA certificate
+curl --cacert ssl/ca/ca-cert.pem https://mlflow.lab/
+        </pre>
+        
+        <h2>Browser Testing</h2>
+        <p>Add the following to your <code>/etc/hosts</code> file:</p>
+        <pre>127.0.0.1 mlflow.lab</pre>
+        
+        <p>Then visit: <a href="https://mlflow.lab" style="color: #FFD700;">https://mlflow.lab</a></p>
+        
+        <h2>Certificate Details</h2>
+        <p>This certificate supports the following domains:</p>
+        <ul>
+            <li>mlflow.lab (specific)</li>
+            <li>*.lab (wildcard)</li>
+            <li>minio-console.lab</li>
+            <li>lab</li>
+        </ul>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            
+            if (protocol === 'https:') {
+                document.querySelector('.success').innerHTML = 
+                    `HTTPS is working successfully on ${host}!`;
+            } else {
+                document.querySelector('.success').innerHTML = 
+                    `Currently viewing over HTTP. Visit https://${host} for HTTPS test.`;
+                document.querySelector('.success').style.color = '#FF9800';
+            }
+        });
+    </script>
+</body>
+</html>

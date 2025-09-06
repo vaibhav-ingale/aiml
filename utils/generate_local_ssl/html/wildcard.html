@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wildcard HTTPS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .cert-info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .domain {
+            color: #FFD700;
+            font-weight: bold;
+        }
+        pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Wildcard HTTPS Test</h1>
+        <p class="success">Wildcard HTTPS certificate is working!</p>
+        
+        <div class="cert-info">
+            <h2>Certificate Information</h2>
+            <p><strong>Domain:</strong> <span class="domain" id="current-domain">*.lab</span></p>
+            <p><strong>Certificate:</strong> lab-cert.pem</p>
+            <p><strong>Issuer:</strong> Vizen Lab CA</p>
+        </div>
+        
+        <h2>Supported Domains</h2>
+        <p>This wildcard certificate works for:</p>
+        <ul>
+            <li><code>*.lab</code> - Any subdomain ending in .lab</li>
+            <li><code>lab</code> - The root domain</li>
+        </ul>
+        
+        <h2>Test Different Subdomains</h2>
+        <p>Add these entries to your <code>/etc/hosts</code> file:</p>
+        <pre>
+127.0.0.1 test.lab
+127.0.0.1 api.lab
+127.0.0.1 admin.lab
+127.0.0.1 lab
+        </pre>
+        
+        <p>Then test these URLs:</p>
+        <ul>
+            <li><a href="https://test.lab" style="color: #FFD700;">https://test.lab</a></li>
+            <li><a href="https://api.lab" style="color: #FFD700;">https://api.lab</a></li>
+            <li><a href="https://admin.lab" style="color: #FFD700;">https://admin.lab</a></li>
+            <li><a href="https://lab" style="color: #FFD700;">https://lab</a></li>
+        </ul>
+        
+        <h2>Test Commands</h2>
+        <pre>
+# Test wildcard certificate
+curl -k https://test.lab/
+curl -k https://api.lab/health
+
+# Test with CA certificate
+curl --cacert ssl/ca/ca-cert.pem https://test.lab/
+        </pre>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const host = window.location.host;
+            document.getElementById('current-domain').textContent = host;
+            
+            if (window.location.protocol === 'https:') {
+                document.querySelector('.success').innerHTML = 
+                    `Wildcard HTTPS certificate is working for ${host}!`;
+            }
+        });
+    </script>
+</body>
+</html>
