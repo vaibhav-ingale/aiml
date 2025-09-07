@@ -10,6 +10,11 @@ This folder contains examples and tutorials for working with LangChain.
 | [1_chat_with_model.py](./1_chat_with_model.py) | Interactive chat application with universal model switching (Ollama, OpenAI, Anthropic, etc.) |
 | [2_quick_model_example.py](./2_quick_model_example.py) | Examples demonstrating quick model switching between different providers |
 | [3_conversation.py](./3_conversation.py) | Comprehensive examples of SystemMessage, HumanMessage, and AIMessage usage patterns |
+| [4_chat_with_me.py](./4_chat_with_me.py) | Interactive chat with AI assistant "Maya" maintaining conversation history |
+| [5_chat_with_memory.py](./5_chat_with_memory.py) | Chat implementation using MessagesPlaceholder for memory management within prompt templates |
+| [6_basic_prompts.py](./6_basic_prompts.py) | Basic prompt template examples and usage patterns |
+| [7_few_shot_prompt.py](./7_few_shot_prompt.py) | Few-shot prompting examples for complex reasoning tasks |
+| [8_few_shot_fun_prompt.py](./8_few_shot_fun_prompt.py) | Creative few-shot prompting with custom operations using emoji symbols |
 | [.env.example](./.env.example) | Template for environment variables and API keys |
 
 ### Quick Usage
