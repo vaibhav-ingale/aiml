@@ -41,7 +41,7 @@ Answer: Understand like highschool student and answer in a concise manner."""
 prompt = ChatPromptTemplate.from_template(template)
 
 # Test question
-question = "What is machine learning?"
+question = "What is embedings in LLM?"
 
 if model:
     try:
