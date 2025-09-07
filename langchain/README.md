@@ -15,6 +15,7 @@ This folder contains examples and tutorials for working with LangChain.
 | [6_basic_prompts.py](./6_basic_prompts.py) | Basic prompt template examples and usage patterns |
 | [7_few_shot_prompt.py](./7_few_shot_prompt.py) | Few-shot prompting examples for complex reasoning tasks |
 | [8_few_shot_fun_prompt.py](./8_few_shot_fun_prompt.py) | Creative few-shot prompting with custom operations using emoji symbols |
+| [9_chain_of_thoughts.py](./9_chain_of_thoughts.py) | Chain of thought prompting examples for step-by-step reasoning and problem solving |
 | [.env.example](./.env.example) | Template for environment variables and API keys |
 
 ### Quick Usage
