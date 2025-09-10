@@ -16,6 +16,12 @@ This folder contains examples and tutorials for working with LangChain.
 | [7_few_shot_prompt.py](./7_few_shot_prompt.py) | Few-shot prompting examples for complex reasoning tasks |
 | [8_few_shot_fun_prompt.py](./8_few_shot_fun_prompt.py) | Creative few-shot prompting with custom operations using emoji symbols |
 | [9_chain_of_thoughts.py](./9_chain_of_thoughts.py) | Chain of thought prompting examples for step-by-step reasoning and problem solving |
+| [10_simple_chain.py](./10_simple_chain.py) | Basic chain example using prompt template and LLM for story title generation |
+| [11_sequential_chain_example1.py](./11_sequential_chain_example1.py) | Sequential chain example for company naming and description generation |
+| [11_sequential_chain_example2.py](./11_sequential_chain_example2.py) | Advanced sequential chain for review translation, summarization, and language detection |
+| [12_router_chain.py](./12_router_chain.py) | Router chain implementation for routing questions to subject-specific expert prompts |
+| [13_parallel_chain.py](./13_parallel_chain.py) | Parallel chain execution for product review analysis (features, pros, cons) |
+| [14_branching_chain.py](./14_branching_chain.py) | Branching chain logic for conditional response handling based on feedback sentiment |
 | [.env.example](./.env.example) | Template for environment variables and API keys |
 
 ### Quick Usage
