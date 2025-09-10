@@ -76,18 +76,14 @@ class ModelSwitcher:
             Initialized model instance or None if failed
         """
         if provider.lower() not in self.supported_providers:
-            raise ValueError(
-                f"Unsupported provider: {provider}. Supported: {list(self.supported_providers.keys())}"
-            )
+            raise ValueError(f"Unsupported provider: {provider}. Supported: {list(self.supported_providers.keys())}")
 
         return self.supported_providers[provider.lower()](model_name, **kwargs)
 
     def _get_ollama_model(self, model_name: str, **kwargs) -> Optional[OllamaLLM]:
         """Get Ollama model."""
         if OllamaLLM is None:
-            print(
-                "langchain_ollama not installed. Install: pip install langchain-ollama"
-            )
+            print("langchain_ollama not installed. Install: pip install langchain-ollama")
             return None
 
         defaults = {"temperature": 0.1, "max_tokens": 100}
@@ -98,28 +94,39 @@ class ModelSwitcher:
     def _get_openai_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
         """Get OpenAI model."""
         if ChatOpenAI is None:
-            print(
-                "langchain_openai not installed. Install: pip install langchain-openai"
-            )
+            print("langchain_openai not installed. Install: pip install langchain-openai")
             return None
 
-        if not os.getenv("OPENAI_API_KEY"):
+        # Extract openai_api_key and openai_api_base from kwargs
+        # https://github.com/ggml-org/llama.cpp can be used with "not-needed" as the key
+        openai_api_key = kwargs.pop("openai_api_key", None)
+        openai_api_base = kwargs.pop("openai_api_base", None)
+
+        # Handle API key validation - skip if "not-needed" or if provided via kwargs
+        if openai_api_key != "not-needed" and not openai_api_key and not os.getenv("OPENAI_API_KEY"):
             print("OPENAI_API_KEY environment variable not set")
             return None
 
         defaults = {"temperature": 0.1, "max_tokens": 100}
+
+        # Add openai_api_key if provided and not "not-needed"
+        if openai_api_key and openai_api_key != "not-needed":
+            defaults["openai_api_key"] = openai_api_key
+        elif openai_api_key == "not-needed":
+            defaults["openai_api_key"] = openai_api_key
+
+        # Add openai_api_base if provided
+        if openai_api_base:
+            defaults["openai_api_base"] = openai_api_base
+
         defaults.update(kwargs)
 
         return ChatOpenAI(model=model_name, **defaults)
 
-    def _get_anthropic_model(
-        self, model_name: str, **kwargs
-    ) -> Optional[ChatAnthropic]:
+    def _get_anthropic_model(self, model_name: str, **kwargs) -> Optional[ChatAnthropic]:
         """Get Anthropic model."""
         if ChatAnthropic is None:
-            print(
-                "langchain_anthropic not installed. Install: pip install langchain-anthropic"
-            )
+            print("langchain_anthropic not installed. Install: pip install langchain-anthropic")
             return None
 
         if not os.getenv("ANTHROPIC_API_KEY"):
@@ -134,9 +141,7 @@ class ModelSwitcher:
     def _get_mistral_model(self, model_name: str, **kwargs) -> Optional[ChatMistralAI]:
         """Get Mistral model."""
         if ChatMistralAI is None:
-            print(
-                "langchain_mistralai not installed. Install: pip install langchain-mistralai"
-            )
+            print("langchain_mistralai not installed. Install: pip install langchain-mistralai")
             return None
 
         if not os.getenv("MISTRAL_API_KEY"):
@@ -148,14 +153,10 @@ class ModelSwitcher:
 
         return ChatMistralAI(model=model_name, **defaults)
 
-    def _get_huggingface_model(
-        self, model_name: str, **kwargs
-    ) -> Optional[HuggingFaceEndpoint]:
+    def _get_huggingface_model(self, model_name: str, **kwargs) -> Optional[HuggingFaceEndpoint]:
         """Get HuggingFace model."""
         if HuggingFaceEndpoint is None:
-            print(
-                "langchain_huggingface not installed. Install: pip install langchain-huggingface"
-            )
+            print("langchain_huggingface not installed. Install: pip install langchain-huggingface")
             return None
 
         if not os.getenv("HUGGINGFACEHUB_API_TOKEN"):
@@ -167,14 +168,10 @@ class ModelSwitcher:
 
         return HuggingFaceEndpoint(repo_id=model_name, **defaults)
 
-    def _get_google_model(
-        self, model_name: str, **kwargs
-    ) -> Optional[ChatGoogleGenerativeAI]:
+    def _get_google_model(self, model_name: str, **kwargs) -> Optional[ChatGoogleGenerativeAI]:
         """Get Google Generative AI model."""
         if ChatGoogleGenerativeAI is None:
-            print(
-                "langchain_google_genai not installed. Install: pip install langchain-google-genai"
-            )
+            print("langchain_google_genai not installed. Install: pip install langchain-google-genai")
             return None
 
         if not os.getenv("GOOGLE_API_KEY"):

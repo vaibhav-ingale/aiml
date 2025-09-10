@@ -17,7 +17,17 @@ print("\nMODEL SELECTION:")
 print("-" * 30)
 
 # Select your model by uncommenting one line:
-model = get_model("ollama", "llama3.2:1b", temperature=0.1, max_tokens=100)
+# model = get_model("ollama", "llama3.2:1b", temperature=0.1, max_tokens=100)
+"""
+Before running this, make sure you are running  
+
+$ cd /Users/unisubzee/src/learn/LLM/llama.cpp/build/bin
+
+$ ./llama-server -hf ggml-org/gpt-oss-20b-GGUF                                                                                                                                                                    ─╯
+main: server is listening on http://127.0.0.1:8080 - starting the main loop
+"""
+model = get_model("openai", "gpt-oss:20b", temperature=0.1, max_tokens=100, openai_api_key="not_needed", openai_api_base="http://localhost:8080/v1")
+
 # model = get_model("openai", "gpt-4", temperature=0.1, max_tokens=100)
 # model = get_model("anthropic", "claude-3-sonnet-20240229", temperature=0.1, max_tokens=100)
 # model = get_model("mistral", "mistral-small-latest", temperature=0.1, max_tokens=100)

@@ -25,9 +25,15 @@ from model_switcher import get_model
 
 # Switch between any provider with one line
 model = get_model('ollama', 'llama2')
+
 model = get_model('openai', 'gpt-3.5-turbo')
+
 model = get_model('anthropic', 'claude-3-sonnet-20240229')
+
 model = get_model('mistral', 'mistral-large-latest')
+
+# added support for local llama.cpp server running on port 8080
+model = get_model("openai", "gpt-oss:20b", openai_api_key="not_needed", openai_api_base="http://localhost:8080/v1")
 ```
 
 ### Installation for specific providers
