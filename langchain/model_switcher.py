@@ -57,6 +57,7 @@ class ModelSwitcher:
         self.supported_providers = {
             "ollama": self._get_ollama_model,
             "openai": self._get_openai_model,
+            "llamacpp": self._get_llamacpp_model,
             "anthropic": self._get_anthropic_model,
             "mistral": self._get_mistral_model,
             "huggingface": self._get_huggingface_model,
@@ -68,7 +69,7 @@ class ModelSwitcher:
         Get a model from the specified provider.
 
         Args:
-            provider: Provider name ('ollama', 'openai', 'anthropic', 'mistral', 'huggingface', 'google')
+            provider: Provider name ('ollama', 'openai', 'llamacpp', 'anthropic', 'mistral', 'huggingface', 'google')
             model_name: Model name/ID
             **kwargs: Additional parameters for the model
 
@@ -97,28 +98,30 @@ class ModelSwitcher:
             print("langchain_openai not installed. Install: pip install langchain-openai")
             return None
 
-        # Extract openai_api_key and openai_api_base from kwargs
-        # https://github.com/ggml-org/llama.cpp can be used with "not-needed" as the key
-        openai_api_key = kwargs.pop("openai_api_key", None)
-        openai_api_base = kwargs.pop("openai_api_base", None)
-
-        # Handle API key validation - skip if "not-needed" or if provided via kwargs
-        if openai_api_key != "not-needed" and not openai_api_key and not os.getenv("OPENAI_API_KEY"):
+        if not os.getenv("OPENAI_API_KEY"):
             print("OPENAI_API_KEY environment variable not set")
             return None
 
         defaults = {"temperature": 0.1, "max_tokens": 100}
+        defaults.update(kwargs)
 
-        # Add openai_api_key if provided and not "not-needed"
-        if openai_api_key and openai_api_key != "not-needed":
-            defaults["openai_api_key"] = openai_api_key
-        elif openai_api_key == "not-needed":
-            defaults["openai_api_key"] = openai_api_key
+        return ChatOpenAI(model=model_name, **defaults)
 
-        # Add openai_api_base if provided
-        if openai_api_base:
-            defaults["openai_api_base"] = openai_api_base
+    def _get_llamacpp_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
+        """Get llama.cpp model using OpenAI-compatible endpoint."""
+        if ChatOpenAI is None:
+            print("langchain_openai not installed. Install: pip install langchain-openai")
+            return None
 
+        # Extract base_url from kwargs, default to llama.cpp default
+        base_url = kwargs.pop("base_url", "http://localhost:8080/v1")
+
+        defaults = {
+            "temperature": 0.1,
+            "max_tokens": 100,
+            "openai_api_key": "not-needed",
+            "openai_api_base": base_url,
+        }
         defaults.update(kwargs)
 
         return ChatOpenAI(model=model_name, **defaults)
@@ -209,6 +212,9 @@ def get_model(provider: str, model_name: str, **kwargs) -> Union[Any, None]:
         # OpenAI
         model = get_model('openai', 'gpt-3.5-turbo')
 
+        # llama.cpp
+        model = get_model('llamacpp', 'local-model', base_url='http://localhost:8080/v1')
+
         # Anthropic
         model = get_model('anthropic', 'claude-3-sonnet-20240229')
 
@@ -267,4 +273,5 @@ if __name__ == "__main__":
     print("\nExample usage:")
     print("model = get_model('ollama', 'llama2')")
     print("model = get_model('openai', 'gpt-3.5-turbo')")
+    print("model = get_model('llamacpp', 'local-model', base_url='http://localhost:8080/v1')")
     print("model = get_model('anthropic', 'claude-3-sonnet-20240229')")

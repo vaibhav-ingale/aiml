@@ -1,41 +1,17 @@
 """
 Quick Model Switching Examples
 Demonstrates how to switch between different LLM providers with one line of code.
+Now uses global model configuration from model_config.py
 """
 
 from langchain_core.prompts import ChatPromptTemplate
-from model_switcher import get_model
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-print("=" * 60)
-print("QUICK MODEL SWITCHING EXAMPLES")
-print("=" * 60)
+from utils import print_model_info, print_response
 
-# =============================================================================
-# MODEL SELECTION BLOCK
-# =============================================================================
-print("\nMODEL SELECTION:")
-print("-" * 30)
-
-# Select your model by uncommenting one line:
-# model = get_model("ollama", "llama3.2:1b", temperature=0.1, max_tokens=100)
-"""
-Before running this, make sure you are running  
-
-$ cd /Users/unisubzee/src/learn/LLM/llama.cpp/build/bin
-
-$ ./llama-server -hf ggml-org/gpt-oss-20b-GGUF                                                                                                                                                                    ─╯
-main: server is listening on http://127.0.0.1:8080 - starting the main loop
-"""
-model = get_model("openai", "gpt-oss:20b", temperature=0.1, max_tokens=100, openai_api_key="not_needed", openai_api_base="http://localhost:8080/v1")
-
-# model = get_model("openai", "gpt-4", temperature=0.1, max_tokens=100)
-# model = get_model("anthropic", "claude-3-sonnet-20240229", temperature=0.1, max_tokens=100)
-# model = get_model("mistral", "mistral-small-latest", temperature=0.1, max_tokens=100)
-# model = get_model(
-#     "google", "gemini-2.5-flash-lite", temperature=0.1, max_output_tokens=100
-# )
-
-print(f"Selected model: {type(model).__name__ if model else 'None'}")
+# Get model from global configuration (edit model_config.py to change)
+model = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 # =============================================================================
 # MODEL CHAINING AND EXECUTION BLOCK
@@ -60,9 +36,11 @@ if model:
         print("Chain created successfully")
 
         # Execute the chain
-        print(f"Question: {question}")
+        print(f"\nQuestion: {question}")
         response = chain.invoke({"question": question})
-        print(f"Response: {response}")
+
+        # Print response using utility function
+        print_response(response, PROVIDER)
 
     except Exception as e:
         print(f"Execution error: {e}")

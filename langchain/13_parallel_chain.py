@@ -1,11 +1,14 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama.llms import OllamaLLM
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 from model_switcher import get_model
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.runnable import RunnableLambda, RunnableParallel
+from utils import print_model_info, print_response
 
-llm = get_model("ollama", "gemma3:4b", temperature=0.1, max_tokens=500)
+llm = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 
 # Define prompt template
@@ -68,4 +71,5 @@ chain = (
 result = chain.invoke({"product_name": "MacBook Pro"})
 
 # Output
-print(result)
+print("Product Review for MacBook Pro:")
+print_response(result, PROVIDER)

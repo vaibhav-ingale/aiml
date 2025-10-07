@@ -1,9 +1,12 @@
 from langchain_core.output_parsers import StrOutputParser
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 from model_switcher import get_model
 
 from langchain.prompts import ChatPromptTemplate
+from utils import print_model_info, print_response
 
-llm = get_model("ollama", "gpt-oss:20b", temperature=0.1, max_tokens=500)
+llm = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 # First prompt template
 first_prompt = ChatPromptTemplate.from_template("What is the best name to describe a company that makes {product}?")
@@ -29,8 +32,10 @@ def sequential_chain(inputs):
 product = "AI powered cars"
 print(f"Product: {product}")
 response = sequential_chain({"product": product})
-print(f"Company Name: {response['company_name']}")
-print(f"Description: {response['description']}")
+print(f"Company Name:")
+print_response(response["company_name"], PROVIDER)
+print(f"\nDescription:")
+print_response(response["description"], PROVIDER)
 print()
 
 print("=" * 60)
@@ -39,6 +44,8 @@ print("=" * 60)
 product = "AI in healthcare"
 print(f"Product: {product}")
 response = sequential_chain({"product": product})
-print(f"Company Name: {response['company_name']}")
-print(f"Description: {response['description']}")
+print(f"Company Name:")
+print_response(response["company_name"], PROVIDER)
+print(f"\nDescription:")
+print_response(response["description"], PROVIDER)
 print()

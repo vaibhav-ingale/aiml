@@ -2,11 +2,13 @@ import json
 import re
 
 from langchain_core.output_parsers import StrOutputParser
-from model_switcher import get_model
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from langchain.prompts import ChatPromptTemplate
+from utils import print_model_info, print_response
 
-llm = get_model("ollama", "gemma3:4b", temperature=0.1, max_tokens=500)
+llm = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 
 # Subject-specific templates
@@ -118,7 +120,6 @@ questions = [
 for question in questions:
     print(f"Question: {question}")
     response = route_question(question)
-    print(f"Answer: {response}")
-    print("=" * 60)
-    print(f"Answer: {response}")
+    print(f"Answer:")
+    print_response(response, PROVIDER)
     print("=" * 60)

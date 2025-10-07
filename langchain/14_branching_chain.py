@@ -1,10 +1,14 @@
 from langchain_ollama.llms import OllamaLLM
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableBranch
+from utils import print_model_info, print_response
 
-llm = OllamaLLM(model="llama3.2", temperature=0.1)
+model = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+llm = model
 
 
 # Define prompt templates for different feedback types
@@ -91,5 +95,7 @@ review = [
 
 for r in review:
     result = chain.invoke({"feedback": r})
-    print(f"Feedback: {r}\nResponse: {result}\n")
+    print(f"Feedback: {r}")
+    print("Response:")
+    print_response(result, PROVIDER)
     print("-" * 80)

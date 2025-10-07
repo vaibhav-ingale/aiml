@@ -1,12 +1,12 @@
 from datetime import datetime
 
-from langchain_ollama.llms import OllamaLLM
-from model_switcher import get_model
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from utils import print_model_info, print_response
 
-model = get_model("ollama", "gpt-oss:20b", temperature=0.1, max_tokens=100)
-
+model = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 chat_history = []
 
@@ -21,8 +21,17 @@ Strictly provide answers to the user's questions without any additional informat
 )
 
 chat_history.append(system_message)
+print("Chat with AI Assistant Maya (type 'exit' or 'quit' to end)")
+print("-" * 50)
+
 while True:
-    user_input = input("User: ")
+    user_input = input("User: ").strip()
+
+    # Validate empty input
+    if not user_input:
+        print("No input provided. Please type your message or 'exit' to quit.")
+        continue
+
     if user_input.lower() in ["exit", "quit"]:
         print("Exiting chat...")
         break
@@ -31,10 +40,10 @@ while True:
     chat_history.append(human_message)
 
     try:
-        response = model.invoke(chat_history)
-        ai_message = AIMessage(content=response)
+        ai_message = model.invoke(chat_history)
         chat_history.append(ai_message)
-        print(f"AI: {response}")
+        print("AI: ", end="")
+        print_response(ai_message, PROVIDER)
     except Exception as e:
         print(f"Error: {e}")
 

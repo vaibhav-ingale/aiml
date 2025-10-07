@@ -1,9 +1,12 @@
 from langchain_core.output_parsers import StrOutputParser
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 from model_switcher import get_model
 
 from langchain.prompts import ChatPromptTemplate
+from utils import print_model_info, print_response
 
-llm = get_model("ollama", "gpt-oss:20b", temperature=0.1, max_tokens=500)
+llm = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 # prompt template 1: translate to english
 first_prompt = ChatPromptTemplate.from_template("Translate the following review to english:" "\n\n{Review}")
@@ -50,24 +53,36 @@ def sequential_chain(inputs):
 # Test with first product
 review = "Je trouve le goût médiocre. La mousse ne tient pas, c'est bizarre. J'achète les mêmes dans le commerce et le goût est bien meilleur... Vieux lot ou contrefaçon !?"
 reponse = sequential_chain({"Review": review})
-print(f"English Review: {reponse['English_Review']}")
-print(f"Summary: {reponse['summary']}")
-print(f"Follow-up Response: {reponse['followup_message']}")
+print(f"Original Review: {review}")
+print(f"\nEnglish Review:")
+print_response(reponse["English_Review"], PROVIDER)
+print(f"\nSummary:")
+print_response(reponse["summary"], PROVIDER)
+print(f"\nFollow-up Response:")
+print_response(reponse["followup_message"], PROVIDER)
 print("=" * 60)
 
 
 review = "Das Produkt ist von schlechter Qualität. Es riecht komisch und funktioniert nicht richtig."
 reponse = sequential_chain({"Review": review})
-print(f"English Review: {reponse['English_Review']}")
-print(f"Summary: {reponse['summary']}")
-print(f"Follow-up Response: {reponse['followup_message']}")
+print(f"Original Review: {review}")
+print(f"\nEnglish Review:")
+print_response(reponse["English_Review"], PROVIDER)
+print(f"\nSummary:")
+print_response(reponse["summary"], PROVIDER)
+print(f"\nFollow-up Response:")
+print_response(reponse["followup_message"], PROVIDER)
 print("=" * 60)
 
 
 # in Hindi
 review = "यह उत्पाद बहुत अच्छा है। मुझे इसकी गुणवत्ता और प्रदर्शन पसंद आया।"
 reponse = sequential_chain({"Review": review})
-print(f"English Review: {reponse['English_Review']}")
-print(f"Summary: {reponse['summary']}")
-print(f"Follow-up Response: {reponse['followup_message']}")
+print(f"Original Review: {review}")
+print(f"\nEnglish Review:")
+print_response(reponse["English_Review"], PROVIDER)
+print(f"\nSummary:")
+print_response(reponse["summary"], PROVIDER)
+print(f"\nFollow-up Response:")
+print_response(reponse["followup_message"], PROVIDER)
 print("=" * 60)

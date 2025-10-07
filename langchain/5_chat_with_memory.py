@@ -1,24 +1,15 @@
-# Reference : https://python.langchain.com/api_reference/langchain/memory.html
-# instead of using chat_history, we will use MessagesPlaceholder
-# to manage chat history within the prompt template itself.
-
-from datetime import datetime
-
-from model_switcher import get_model
-
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
-
-model = get_model("ollama", "gpt-oss:20b", temperature=0.1, max_tokens=100)
-
-
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+
+from utils import print_model_info, print_response
+
+model = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 prompt = ChatPromptTemplate.from_messages(
     [
-        SystemMessage(
-            content="You are a helpful assistant. Answer all questions to the best of your ability."
-        ),
+        SystemMessage(content="You are a helpful assistant. Answer all questions to the best of your ability."),
         MessagesPlaceholder(variable_name="messages"),
     ]
 )
@@ -33,7 +24,12 @@ print("-" * 45)
 
 # Main chat loop
 while True:
-    user_input = input("User: ")
+    user_input = input("User: ").strip()
+
+    # Validate empty input
+    if not user_input:
+        print("No input provided. Please type your message or 'exit' to quit.")
+        continue
 
     if user_input.lower() in ["exit", "quit"]:
         print("Exiting chat...")
@@ -46,11 +42,14 @@ while True:
         # Invoke chain with current messages using MessagesPlaceholder
         ai_response = chain.invoke({"messages": messages})
 
-        # Add AI response to messages list
-        messages.append(AIMessage(content=ai_response))
+        # llama.cpp responses may come back as raw strings; normalize to AIMessage
+        assistant_message = ai_response if isinstance(ai_response, AIMessage) else AIMessage(content=str(ai_response))
+
+        messages.append(assistant_message)
 
         # Display AI response
-        print(f"AI: {ai_response}")
+        print("AI: ", end="")
+        print_response(assistant_message, PROVIDER)
 
     except Exception as e:
         print(f"Error: {e}")

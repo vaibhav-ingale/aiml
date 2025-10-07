@@ -4,16 +4,13 @@ Demonstrates proper usage of SystemMessage, HumanMessage, and AIMessage for vari
 """
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from model_switcher import get_model
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-# =============================================================================
-# MODEL SETUP
-# =============================================================================
-model = get_model("ollama", "llama3.2:1b", temperature=0.1, max_tokens=150)
+from utils import print_model_info, print_response
 
-if not model:
-    print("Model not available. Check your setup.")
-    exit(1)
+# Get model from global configuration (edit model_config.py to change)
+model = get_configured_model()
+print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
 
 print("LangChain Messages - Use Case Examples")
 print("=" * 50)
@@ -21,59 +18,51 @@ print("=" * 50)
 # =============================================================================
 # USE CASE 1: BASIC CONVERSATION WITH SYSTEM PROMPT
 # =============================================================================
-input()
+user_input = input("Press Enter to continue to USE CASE 1...").strip()
 print("\nUSE CASE 1: Math Tutor with System Prompt")
 print("-" * 40)
 
 messages = [
-    SystemMessage(
-        content="You are a helpful math tutor. Explain your reasoning step by step with maths concepts used and keep answers concise."
-    ),
+    SystemMessage(content="You are a helpful math tutor. Explain your reasoning step by step with maths concepts used and keep answers concise."),
     HumanMessage(content="What is 256 divided by 7?"),
 ]
 
 result = model.invoke(messages)
 print(f"Question: What is 256 divided by 7?")
-print(f"AI Response: {result}")
+print("AI Response:")
+print_response(result, PROVIDER)
 
 # =============================================================================
 # USE CASE 2: CONVERSATION WITH CONTEXT (MULTI-TURN)
 # =============================================================================
-input()
+user_input = input("Press Enter to continue to USE CASE 2...").strip()
 print("\nUSE CASE 2: Multi-turn Conversation with Context")
 print("-" * 40)
 
 conversation = [
-    SystemMessage(
-        content="You are a cooking assistant. Give brief, practical cooking advice."
-    ),
+    SystemMessage(content="You are a cooking assistant. Give brief, practical cooking advice."),
     HumanMessage(content="How do I make pasta?"),
-    AIMessage(
-        content="1. Boil salted water 2. Add pasta 3. Cook 8-12 minutes 4. Drain 5. Add sauce"
-    ),
+    AIMessage(content="1. Boil salted water 2. Add pasta 3. Cook 8-12 minutes 4. Drain 5. Add sauce"),
     HumanMessage(content="What if I want to make it healthier?"),
 ]
 
 result = model.invoke(conversation)
 print("Previous exchange:")
 print("Human: How do I make pasta?")
-print(
-    "AI: 1. Boil salted water 2. Add pasta 3. Cook 8-12 minutes 4. Drain 5. Add sauce"
-)
+print("AI: 1. Boil salted water 2. Add pasta 3. Cook 8-12 minutes 4. Drain 5. Add sauce")
 print(f"\nHuman: What if I want to make it healthier?")
-print(f"AI Response: {result}")
+print("AI Response:")
+print_response(result, PROVIDER)
 
 # =============================================================================
 # USE CASE 3: ROLE-BASED CONVERSATION
 # =============================================================================
-input()
+input("Press Enter to continue...")
 print("\nUSE CASE 3: Role-based Conversation (Code Review)")
 print("-" * 40)
 
 code_review = [
-    SystemMessage(
-        content="You are a senior Python developer reviewing code. Focus on best practices and improvements."
-    ),
+    SystemMessage(content="You are a senior Python developer reviewing code. Focus on best practices and improvements."),
     HumanMessage(
         content="""
 def calculate_area(length, width):
@@ -91,19 +80,18 @@ print("def calculate_area(length, width):")
 print("    return length * width")
 print("result = calculate_area(5, 10)")
 print("print(result)")
-print(f"\nCode Review: {result}")
+print("\nCode Review:")
+print_response(result, PROVIDER)
 
 # =============================================================================
 # USE CASE 4: TASK-SPECIFIC WITH EXAMPLES (FEW-SHOT)
 # =============================================================================
-input()
+user_input = input("Press Enter to continue to USE CASE 4...").strip()
 print("\nUSE CASE 4: Few-shot Learning (Sentiment Analysis)")
 print("-" * 40)
 
 sentiment_task = [
-    SystemMessage(
-        content="Classify the sentiment of text as: POSITIVE, NEGATIVE, or NEUTRAL. Be concise. and provide only the single label."
-    ),
+    SystemMessage(content="Classify the sentiment of text as: POSITIVE, NEGATIVE, or NEUTRAL. Be concise. and provide only the single label."),
     HumanMessage(content="I love this product! It works perfectly."),
     AIMessage(content="POSITIVE"),
     HumanMessage(content="This is okay, nothing special."),
@@ -116,30 +104,30 @@ print("Examples provided:")
 print("'I love this product! It works perfectly.' → POSITIVE")
 print("'This is okay, nothing special.' → NEUTRAL")
 print(f"\nNew text: 'I hate about the new features coming next month!'")
-print(f"AI Classification: {result}")
+print("AI Classification:")
+print_response(result, PROVIDER)
 
 # =============================================================================
 # USE CASE 5: CREATIVE WRITING WITH CONSTRAINTS
 # =============================================================================
-input()
+user_input = input("Press Enter to continue to USE CASE 5...").strip()
 print("\nUSE CASE 5: Creative Writing with Constraints")
 print("-" * 40)
 
 creative_writing = [
-    SystemMessage(
-        content="You are a creative writer. Write exactly 2 sentences. Be imaginative but concise."
-    ),
+    SystemMessage(content="You are a creative writer. Write exactly 2 sentences. Be imaginative but concise."),
     HumanMessage(content="Write a short story about a robot learning to paint"),
 ]
 
 result = model.invoke(creative_writing)
 print("Prompt: Write a short story about a robot learning to paint")
-print(f"AI Story: {result}")
+print("AI Story:")
+print_response(result, PROVIDER)
 
 # =============================================================================
 # USE CASE 6: DYNAMIC CONVERSATION BUILDING
 # =============================================================================
-input()
+user_input = input("Press Enter to continue to USE CASE 6...").strip()
 print("\nUSE CASE 6: Building Conversation Dynamically")
 print("-" * 40)
 
@@ -174,10 +162,9 @@ plant_conversation = build_conversation(
 result = model.invoke(plant_conversation)
 print("Conversation history:")
 print("Q: How often should I water my houseplants?")
-print(
-    "A: Check soil moisture. Most houseplants need water when top inch is dry, usually 1-2 times per week."
-)
+print("A: Check soil moisture. Most houseplants need water when top inch is dry, usually 1-2 times per week.")
 print(f"\nQ: My plant leaves are turning yellow. What should I do?")
-print(f"A: {result}")
+print("A:")
+print_response(result, PROVIDER)
 
 print("\n" + "=" * 50)

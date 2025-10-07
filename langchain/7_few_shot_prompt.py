@@ -1,9 +1,12 @@
 # Reference: https://python.langchain.com/docs/modules/chains/popular/chains/few_shot_prompt
 
 from langchain_core.prompts import FewShotPromptTemplate, PromptTemplate
-from model_switcher import get_model
+from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-model = get_model("ollama", "gpt-oss:20b", temperature=0.1, max_tokens=100)
+from utils import print_model_info, print_response
+
+model = get_configured_model()
+print_model_info(MODEL_NAME, MODEL_PARAMS, PROVIDER)
 
 
 example_prompt = PromptTemplate.from_template("Question: {question}\n{answer}")
@@ -64,80 +67,26 @@ prompt = FewShotPromptTemplate(
 
 chain = prompt | model
 
-response = chain.invoke({"input": "Which company was founded first, Tesla or Amazon?"})
-print(f"Question: Which company was founded first, Tesla or Amazon?")
-print(response)
-print("-" * 30)
-input()
+questions = [
+    "Which company was founded first, Tesla or Amazon?",
+    "Is the capital of Australia farther south than the capital of New Zealand?",
+    "Did the US declare war on Germany before or after the US declared war on Japan?",
+    "Did the first president of the USA live to be 80?",
+    "Was the creator of Linux born before 1970?",
+    "Is the tallest mountain in Africa taller than the tallest mountain in Europe?",
+    "Is the currency of Japan also used in South Korea?",
+    "Which city is at a higher elevation, Denver or Mexico City?",
+    "Was the iPhone released before or after Facebook was founded?",
+    "Are the birthplaces of Elon Musk and Nelson Mandela in the same country?",
+    "Who became president at a younger age, John F. Kennedy or Barack Obama?",
+    "Which event happened first, the fall of the Berlin Wall or Nelson Mandela's release from prison?",
+    "Did both Marie Curie and Albert Einstein win a Nobel Prize?",
+]
 
-response = chain.invoke({"input": "Is the capital of Australia farther south than the capital of New Zealand?"})
-print(f"Question: Is the capital of Australia farther south than the capital of New Zealand?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Did the US declare war on Germany before or after the US declared war on Japan?"})
-print(f"Question: Did the US declare war on Germany before or after the US declared war on Japan?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Did the first president of the USA live to be 80?"})
-print(f"Question: Did the first president of the USA live to be 80?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Was the creator of Linux born before 1970?"})
-print(f"Question: Was the creator of Linux born before 1970?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Is the tallest mountain in Africa taller than the tallest mountain in Europe?"})
-print(f"Question: Is the tallest mountain in Africa taller than the tallest mountain in Europe?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Is the currency of Japan also used in South Korea?"})
-print(f"Question: Is the currency of Japan also used in South Korea?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Which city is at a higher elevation, Denver or Mexico City?"})
-print(f"Which city is at a higher elevation, Denver or Mexico City?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Was the iPhone released before or after Facebook was founded?"})
-print(f"Was the iPhone released before or after Facebook was founded?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Are the birthplaces of Elon Musk and Nelson Mandela in the same country?"})
-print(f"Are the birthplaces of Elon Musk and Nelson Mandela in the same country?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Who became president at a younger age, John F. Kennedy or Barack Obama?"})
-print(f"Who became president at a younger age, John F. Kennedy or Barack Obama?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Which event happened first, the fall of the Berlin Wall or Nelson Mandela's release from prison?"})
-print(f"Which event happened first, the fall of the Berlin Wall or Nelson Mandela's release from prison?")
-print(response)
-print("-" * 30)
-input()
-
-response = chain.invoke({"input": "Did both Marie Curie and Albert Einstein win a Nobel Prize?"})
-print(f"Did both Marie Curie and Albert Einstein win a Nobel Prize?")
-print(response)
-print("-" * 30)
-input()
+for question in questions:
+    response = chain.invoke({"input": question})
+    print(f"Question: {question}")
+    print("Answer:")
+    print_response(response, PROVIDER)
+    print("-" * 30)
+    user_input = input("Press Enter to continue...").strip()
