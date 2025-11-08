@@ -1,10 +1,10 @@
 from langchain_ollama.llms import OllamaLLM
-from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableBranch
-from utils import print_model_info, print_response
+from mlutils import print_model_info, print_response
 
 model = get_configured_model()
 print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)

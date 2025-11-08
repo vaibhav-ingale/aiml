@@ -4,9 +4,8 @@ Demonstrates proper usage of SystemMessage, HumanMessage, and AIMessage for vari
 """
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
-
-from utils import print_model_info, print_response
+from mlutils import print_model_info, print_response
+from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 # Get model from global configuration (edit model_config.py to change)
 model = get_configured_model()

@@ -2,7 +2,7 @@ import ollama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama.llms import OllamaLLM
 
-from utils import print_response
+from mlutils import print_response
 
 template = """Question: {question}
 

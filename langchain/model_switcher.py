@@ -1,17 +1,13 @@
 """
-Universal Model Switcher for LangChain
-Supports switching between different LLM providers with a single function call.
+Model Switcher for LangChain
+Supports switching between Ollama and llama.cpp models.
 """
 
-import os
-from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import ollama
-from dotenv import load_dotenv
 
-load_dotenv()
-# Import different LangChain model classes
+# Import LangChain model classes
 
 # pip install -qU "langchain[ollama]"
 try:
@@ -20,48 +16,20 @@ except ImportError:
     OllamaLLM = None
 
 # pip install -qU "langchain[openai]"
+# Note: Used for llama.cpp OpenAI-compatible endpoint
 try:
     from langchain_openai import ChatOpenAI
 except ImportError:
     ChatOpenAI = None
 
-# pip install -qU "langchain[anthropic]"
-try:
-    from langchain_anthropic import ChatAnthropic
-except ImportError:
-    ChatAnthropic = None
-
-# pip install -qU "langchain[mistralai]"
-try:
-    from langchain_mistralai import ChatMistralAI
-except ImportError:
-    ChatMistralAI = None
-
-# pip install -qU "langchain[huggingface]"
-try:
-    from langchain_huggingface import HuggingFaceEndpoint
-except ImportError:
-    HuggingFaceEndpoint = None
-
-# pip install -qU "langchain[google-genai]"
-try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
-except ImportError:
-    ChatGoogleGenerativeAI = None
-
 
 class ModelSwitcher:
-    """Universal model switcher for LangChain supporting multiple providers."""
+    """Model switcher for LangChain supporting Ollama and llama.cpp."""
 
     def __init__(self):
         self.supported_providers = {
             "ollama": self._get_ollama_model,
-            "openai": self._get_openai_model,
             "llamacpp": self._get_llamacpp_model,
-            "anthropic": self._get_anthropic_model,
-            "mistral": self._get_mistral_model,
-            "huggingface": self._get_huggingface_model,
-            "google": self._get_google_model,
         }
 
     def get_model(self, provider: str, model_name: str, **kwargs) -> Union[Any, None]:
@@ -69,7 +37,7 @@ class ModelSwitcher:
         Get a model from the specified provider.
 
         Args:
-            provider: Provider name ('ollama', 'openai', 'llamacpp', 'anthropic', 'mistral', 'huggingface', 'google')
+            provider: Provider name ('ollama', 'llamacpp')
             model_name: Model name/ID
             **kwargs: Additional parameters for the model
 
@@ -92,21 +60,6 @@ class ModelSwitcher:
 
         return OllamaLLM(model=model_name, **defaults)
 
-    def _get_openai_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
-        """Get OpenAI model."""
-        if ChatOpenAI is None:
-            print("langchain_openai not installed. Install: pip install langchain-openai")
-            return None
-
-        if not os.getenv("OPENAI_API_KEY"):
-            print("OPENAI_API_KEY environment variable not set")
-            return None
-
-        defaults = {"temperature": 0.1, "max_tokens": 100}
-        defaults.update(kwargs)
-
-        return ChatOpenAI(model=model_name, **defaults)
-
     def _get_llamacpp_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
         """Get llama.cpp model using OpenAI-compatible endpoint."""
         if ChatOpenAI is None:
@@ -125,66 +78,6 @@ class ModelSwitcher:
         defaults.update(kwargs)
 
         return ChatOpenAI(model=model_name, **defaults)
-
-    def _get_anthropic_model(self, model_name: str, **kwargs) -> Optional[ChatAnthropic]:
-        """Get Anthropic model."""
-        if ChatAnthropic is None:
-            print("langchain_anthropic not installed. Install: pip install langchain-anthropic")
-            return None
-
-        if not os.getenv("ANTHROPIC_API_KEY"):
-            print("ANTHROPIC_API_KEY environment variable not set")
-            return None
-
-        defaults = {"temperature": 0.1, "max_tokens": 100}
-        defaults.update(kwargs)
-
-        return ChatAnthropic(model=model_name, **defaults)
-
-    def _get_mistral_model(self, model_name: str, **kwargs) -> Optional[ChatMistralAI]:
-        """Get Mistral model."""
-        if ChatMistralAI is None:
-            print("langchain_mistralai not installed. Install: pip install langchain-mistralai")
-            return None
-
-        if not os.getenv("MISTRAL_API_KEY"):
-            print("MISTRAL_API_KEY environment variable not set")
-            return None
-
-        defaults = {"temperature": 0.1, "max_tokens": 100}
-        defaults.update(kwargs)
-
-        return ChatMistralAI(model=model_name, **defaults)
-
-    def _get_huggingface_model(self, model_name: str, **kwargs) -> Optional[HuggingFaceEndpoint]:
-        """Get HuggingFace model."""
-        if HuggingFaceEndpoint is None:
-            print("langchain_huggingface not installed. Install: pip install langchain-huggingface")
-            return None
-
-        if not os.getenv("HUGGINGFACEHUB_API_TOKEN"):
-            print("HUGGINGFACEHUB_API_TOKEN environment variable not set")
-            return None
-
-        defaults = {"temperature": 0.1, "max_new_tokens": 100}
-        defaults.update(kwargs)
-
-        return HuggingFaceEndpoint(repo_id=model_name, **defaults)
-
-    def _get_google_model(self, model_name: str, **kwargs) -> Optional[ChatGoogleGenerativeAI]:
-        """Get Google Generative AI model."""
-        if ChatGoogleGenerativeAI is None:
-            print("langchain_google_genai not installed. Install: pip install langchain-google-genai")
-            return None
-
-        if not os.getenv("GOOGLE_API_KEY"):
-            print("GOOGLE_API_KEY environment variable not set")
-            return None
-
-        defaults = {"temperature": 0.1, "max_output_tokens": 100}
-        defaults.update(kwargs)
-
-        return ChatGoogleGenerativeAI(model=model_name, **defaults)
 
     def list_available_providers(self) -> list:
         """List all supported providers."""
@@ -209,69 +102,51 @@ def get_model(provider: str, model_name: str, **kwargs) -> Union[Any, None]:
         # Ollama
         model = get_model('ollama', 'llama2')
 
-        # OpenAI
-        model = get_model('openai', 'gpt-3.5-turbo')
-
         # llama.cpp
         model = get_model('llamacpp', 'local-model', base_url='http://localhost:8080/v1')
-
-        # Anthropic
-        model = get_model('anthropic', 'claude-3-sonnet-20240229')
-
-        # Mistral
-        model = get_model('mistral', 'mistral-large-latest')
-
-        # HuggingFace
-        model = get_model('huggingface', 'microsoft/DialoGPT-medium')
-
-        # Google
-        model = get_model('google', 'gemini-pro')
     """
     switcher = ModelSwitcher()
     return switcher.get_model(provider, model_name, **kwargs)
 
 
-# Popular model presets
-POPULAR_MODELS = {
-    "ollama": [
-        "llama2",
-        "llama2:7b",
-        "llama2:13b",
-        "mistral",
-        "codellama",
-        "vicuna",
-        "orca-mini",
-    ],
-    "openai": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"],
-    "anthropic": [
-        "claude-3-opus-20240229",
-        "claude-3-sonnet-20240229",
-        "claude-3-haiku-20240307",
-    ],
-    "mistral": [
-        "mistral-large-latest",
-        "mistral-medium-latest",
-        "mistral-small-latest",
-    ],
-    "google": ["gemini-pro", "gemini-pro-vision"],
-    "huggingface": [
-        "microsoft/DialoGPT-medium",
-        "huggingface/CodeBERTa-small-v1",
-        "facebook/blenderbot-400M-distill",
-    ],
-}
+# Default configuration (can be customized by users)
+PROVIDER = "ollama"
+MODEL_NAME = "gpt-oss:20b"
+MODEL_PARAMS = {"temperature": 0.1, "max_tokens": 100}
+
+
+def get_configured_model(**kwargs) -> Union[Any, None]:
+    """
+    Get the model using the default configuration.
+
+    Args:
+        **kwargs: Additional parameters to override defaults
+
+    Returns:
+        Initialized model instance using PROVIDER, MODEL_NAME, and MODEL_PARAMS
+
+    Examples:
+        # Use default configuration
+        model = get_configured_model()
+
+        # Override specific parameters
+        model = get_configured_model(temperature=0.7)
+
+        # For llama.cpp, you might need to specify base_url
+        model = get_configured_model(base_url='http://localhost:8080/v1')
+    """
+    params = MODEL_PARAMS.copy()
+    params.update(kwargs)
+    return get_model(PROVIDER, MODEL_NAME, **params)
 
 
 if __name__ == "__main__":
+    from mlutils import print_model_info, print_response
+
     # Demo usage
     switcher = ModelSwitcher()
 
     print("Supported providers:", switcher.list_available_providers())
     print("\nAvailable Ollama models:", switcher.list_ollama_models())
-
-    # Example usage
-    print("\nExample usage:")
-    print("model = get_model('ollama', 'llama2')")
-    print("model = get_model('openai', 'gpt-3.5-turbo')")
-    print("model = get_model('llamacpp', 'local-model', base_url='http://localhost:8080/v1')")
-    print("model = get_model('anthropic', 'claude-3-sonnet-20240229')")
+    model = get_configured_model()
+    print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)

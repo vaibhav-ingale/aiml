@@ -1,9 +1,9 @@
 from langchain_core.output_parsers import StrOutputParser
-from model_config import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 from model_switcher import get_model
 
 from langchain.prompts import ChatPromptTemplate
-from utils import print_model_info, print_response
+from mlutils import print_model_info, print_response
 
 llm = get_configured_model()
 print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)

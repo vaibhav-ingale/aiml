@@ -180,7 +180,7 @@ docker-compose restart
 # Stop all services
 docker-compose down
 
-# Stop and remove volumes (�  destroys data)
+# Stop and remove volumes (destroys data)
 docker-compose down -v
 ```
 
