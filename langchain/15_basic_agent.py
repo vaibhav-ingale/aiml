@@ -2,7 +2,10 @@ from langchain_core.tools import tool
 from mlutils import print_model_info
 from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
+import langchain
 from langchain.agents import create_agent
+
+print(f"Lancghain version: {langchain.__version__}  ")
 
 
 @tool
