@@ -5,15 +5,19 @@ Supports switching between Ollama and llama.cpp models.
 
 from typing import Any, Optional, Union
 
-import ollama
+# Import ollama module
+try:
+    import ollama
+except ImportError:
+    ollama = None
 
 # Import LangChain model classes
 
 # pip install -qU "langchain[ollama]"
 try:
-    from langchain_ollama import OllamaLLM
+    from langchain_ollama import ChatOllama
 except ImportError:
-    OllamaLLM = None
+    ChatOllama = None
 
 # pip install -qU "langchain[openai]"
 # Note: Used for llama.cpp OpenAI-compatible endpoint
@@ -49,16 +53,16 @@ class ModelSwitcher:
 
         return self.supported_providers[provider.lower()](model_name, **kwargs)
 
-    def _get_ollama_model(self, model_name: str, **kwargs) -> Optional[OllamaLLM]:
-        """Get Ollama model."""
-        if OllamaLLM is None:
+    def _get_ollama_model(self, model_name: str, **kwargs) -> Optional[ChatOllama]:
+        """Get Ollama chat model."""
+        if ChatOllama is None:
             print("langchain_ollama not installed. Install: pip install langchain-ollama")
             return None
 
-        defaults = {"temperature": 0.1, "max_tokens": 100}
+        defaults = {"temperature": 0.1}
         defaults.update(kwargs)
 
-        return OllamaLLM(model=model_name, **defaults)
+        return ChatOllama(model=model_name, **defaults)
 
     def _get_llamacpp_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
         """Get llama.cpp model using OpenAI-compatible endpoint."""
@@ -85,6 +89,9 @@ class ModelSwitcher:
 
     def list_ollama_models(self) -> list:
         """List available Ollama models."""
+        if ollama is None:
+            print("ollama module not installed. Install: pip install ollama")
+            return []
         try:
             models = ollama.list()["models"]
             return [model.model for model in models]
@@ -112,7 +119,7 @@ def get_model(provider: str, model_name: str, **kwargs) -> Union[Any, None]:
 # Default configuration (can be customized by users)
 PROVIDER = "ollama"
 MODEL_NAME = "gpt-oss:20b"
-MODEL_PARAMS = {"temperature": 0.1, "max_tokens": 100}
+MODEL_PARAMS = {"temperature": 0}
 
 
 def get_configured_model(**kwargs) -> Union[Any, None]:
