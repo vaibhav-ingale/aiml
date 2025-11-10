@@ -58,91 +58,65 @@ def get_current_date() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
+# Separate tools that the agent can chain automatically for finding the time in a city
 @tool
-def get_time_in_city(city: str) -> str:
-    """Get the current time in any city/country by automatically finding its timezone.
-    Works for major cities worldwide - just provide the city name."""
-    import json
-    from datetime import datetime
-    from pathlib import Path
-    from zoneinfo import ZoneInfo
+def identify_timezone(city: str) -> str:
+    """Identify the IANA timezone for a given city using LLM reasoning.
+    Returns the timezone identifier (e.g., 'America/New_York', 'Asia/Tokyo', 'Europe/London').
+    Use this first before calculating time in a city."""
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.prompts import ChatPromptTemplate
 
-    # Load timezone data (once per call)
-    tz_data_file = Path(__file__).parent / "tz_cities.json"
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a geography expert. Given a city name, identify its IANA timezone identifier. "
+                "Return ONLY the timezone string (e.g., 'America/New_York', 'Asia/Tokyo', 'Europe/London', 'Asia/Kolkata'). "
+                "Do not include any explanation, just the timezone identifier.",
+            ),
+            ("human", "What is the IANA timezone for {city}?"),
+        ]
+    )
+
+    model = get_configured_model(temperature=0)
+    chain = prompt | model | StrOutputParser()
 
     try:
-        with tz_data_file.open(encoding="utf-8") as f:
-            tz_data = json.load(f)
+        timezone = chain.invoke({"city": city}).strip()
+        # Clean up any extra text the LLM might add
+        timezone = timezone.replace("'", "").replace('"', "").strip()
+        return timezone
+    except Exception as e:
+        return f"Error identifying timezone: {e}"
 
-        # Build a city → timezone mapping from both text field and timezone identifiers
-        city_tz_map = {}
-        for entry in tz_data:
-            text = entry.get("text", "")
-            utc_zones = entry.get("utc", [])
 
-            if not utc_zones:
-                continue
+@tool
+def calculate_time_in_timezone(timezone: str) -> str:
+    """Calculate the current time in a given IANA timezone.
+    Args:
+        timezone: IANA timezone identifier like 'America/New_York', 'Asia/Tokyo', 'Asia/Kolkata', 'Europe/London'
+    Returns the current time, timezone name, and time difference from local time."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
-            # Extract city names from timezone identifiers (e.g., "America/New_York" → "new york")
-            for tz in utc_zones:
-                if "/" in tz:
-                    # Get the city part after the slash
-                    city_part = tz.split("/")[-1]
-                    # Replace underscores with spaces and convert to lowercase
-                    city_name = city_part.replace("_", " ").lower()
-                    if city_name and city_name not in city_tz_map:
-                        city_tz_map[city_name] = tz
-
-            # Also extract city names from text (e.g., "Beijing, Chongqing, Hong Kong")
-            # Remove timezone offset prefix like "(UTC+08:00) "
-            if ") " in text:
-                cities_part = text.split(") ", 1)[1]
-                # Split by comma and clean up
-                cities = [c.strip().lower() for c in cities_part.split(",")]
-
-                # Map each city to the first timezone in utc array
-                for city_name in cities:
-                    if city_name and city_name not in city_tz_map:
-                        city_tz_map[city_name] = utc_zones[0]
-
-        # Fuzzy lookup: exact match or partial match
-        city_lower = city.lower().strip()
-        timezone_name = None
-
-        # Exact match first
-        if city_lower in city_tz_map:
-            timezone_name = city_tz_map[city_lower]
-        else:
-            # Partial match
-            for name, tz in city_tz_map.items():
-                if city_lower in name or name in city_lower:
-                    timezone_name = tz
-                    break
-
-        if not timezone_name:
-            available_cities = sorted(list(city_tz_map.keys()))[:20]
-            return f"Error: City '{city}' not found. Try cities like: {', '.join(available_cities)}..."
-
+    try:
         # Get current time in local timezone
         local_time = datetime.now().astimezone()
 
         # Get time in target timezone
-        target_tz = ZoneInfo(timezone_name)
+        target_tz = ZoneInfo(timezone)
         target_time = datetime.now(target_tz)
 
         # Calculate time difference
         time_diff = target_time.utcoffset() - local_time.utcoffset()
         hours_diff = time_diff.total_seconds() / 3600
 
-        # Format output
         return (
-            f"\nCurrent time in {city.title()}: {target_time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
-            f"Timezone: {timezone_name}\n"
-            f"Time difference from local: {hours_diff:+.1f} hours"
+            f"\nCurrent time: {target_time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n" f"Timezone: {timezone}\n" f"Time difference from local: {hours_diff:+.1f} hours"
         )
-
     except Exception as e:
-        return f"Error getting time for {city}: {e}"
+        return f"Error calculating time for timezone '{timezone}': {e}. Please verify the IANA timezone format."
 
 
 @tool
@@ -445,7 +419,8 @@ tools = [
     get_current_weather,
     get_current_time,
     get_current_date,
-    get_time_in_city,
+    identify_timezone,  # NEW: Step 1 - Identify timezone for a city
+    calculate_time_in_timezone,  # NEW: Step 2 - Calculate time in that timezone
     search,
     get_local_timezone,
     wikipedia_search,
@@ -458,10 +433,11 @@ tools = [
 # Create system prompt for the agent
 system_prompt = (
     "You are a helpful assistant. Use the available tools to answer questions. "
-    "When asked about time in different cities, use the get_time_in_city tool which automatically "
-    "calculates timezone differences. For any date, time, calender related things use tools to get the current time first. "
+    "When asked about time in different cities, first use identify_timezone to get the timezone for the city, "
+    "then use calculate_time_in_timezone with that timezone to get the current time. "
+    "For any date, time, calendar related things use tools to get the current time first. "
     "For Indian stocks (NSE), use get_nse_stock_price with symbols like RELIANCE, TCS, INFY. "
-    "For US/international stocks, use get_stock_price with tickers like AAPL, TSLA, MSFT. "
+    "For US/international stocks, use get_us_stock_price with tickers like AAPL, TSLA, MSFT. "
     "For US stock financials (revenue, net income, assets, debt), use get_us_financial_statements with tickers like AAPL, TSLA. "
     "For Indian stock financials, use get_nse_financial_statements with symbols like RELIANCE, TCS, INFY. "
     "Do not add any extra formatting."
@@ -531,29 +507,29 @@ def run_query(query: str):
 # Test the tools
 run_query("search who is albert einstein?")
 
-# run_query("what is 2 + 4")
+run_query("what is 2 + 4")
 # run_query("what is 2 * 4")
 # run_query("what is 10 / 2")
 # run_query("what is 8 - 3?")
 
 # run_query("what is the current weather in London?")
-# run_query("what is the current weather in Mumbai?")
+run_query("what is the current weather in Mumbai?")
 # run_query("what is the current weather in San Jose, California?")
-# run_query("what is the current date and time?")
+run_query("what is the current date and time?")
 
-# run_query("what is current timezone?")
+run_query("what is current timezone?")
 # run_query("what is current time in New York?")
 # run_query("what is the current time in Tokyo?")
-# run_query("what is the current time in Mumbai?")
+run_query("what is the current time in Mumbai?")
 # run_query("what is the current time in Dubai?")
 # run_query("what is the current time in Chennai?")
 # run_query("what is the current time in Pune?")
-# run_query("what is the current time in Satara?")
+run_query("what is the current time in Satara?")
 # run_query("what is the current time in Kolhapur?")
 
-# run_query("wikipedia search on Golden Gate Bridge")
+run_query("wikipedia search on Golden Gate Bridge")
 # run_query("how much 6!")
-# run_query("what is the date on next sunday?")
+run_query("what is the date on next sunday?")
 # run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
 
 # run_query("what is the stock price of AAPL?")
@@ -570,6 +546,3 @@ run_query("search who is albert einstein?")
 # Indian stocks
 # run_query("get financial data for RELIANCE")
 # run_query("what is TCS revenue and profit?")
-
-# Test simple queries (uncomment to run)
-# run_query("what is 2 + 4?")

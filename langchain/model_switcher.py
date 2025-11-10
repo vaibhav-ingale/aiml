@@ -118,7 +118,8 @@ def get_model(provider: str, model_name: str, **kwargs) -> Union[Any, None]:
 
 # Default configuration (can be customized by users)
 PROVIDER = "ollama"
-MODEL_NAME = "gpt-oss:20b"
+MODEL_NAME = "qwen3:8b"
+# MODEL_NAME = "gpt-oss:20b"
 MODEL_PARAMS = {"temperature": 0}
 
 
