@@ -161,6 +161,8 @@ services:
       - ./shared/notebooks:/opt/spark/work-dir/notebooks
       - ./shared/spark-logs:/tmp/spark-logs
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark_server_with_jupyternotebook/data:/home/jovyan/data
+      - ./spark_server_with_jupyternotebook/notebooks:/home/jovyan/work
     networks:
       - unified-network
     healthcheck:
@@ -194,6 +196,8 @@ services:
       - ./shared/notebooks:/opt/spark/work-dir/notebooks
       - ./shared/spark-logs:/tmp/spark-logs
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark_server_with_jupyternotebook/data:/home/jovyan/data
+      - ./spark_server_with_jupyternotebook/notebooks:/home/jovyan/work    
     networks:
       - unified-network
     healthcheck:
