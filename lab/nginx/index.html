@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML & Data Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 30px 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #2d3748;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: #718096;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .service-tile {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .service-tile:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+        }
+
+        /* Pastel Colors */
+        .service-tile.mlflow { border-left: 4px solid #a8dadc; }
+        .service-tile.pgadmin { border-left: 4px solid #b8b8ff; }
+        .service-tile.spark { border-left: 4px solid #ffb4a2; }
+        .service-tile.jupyter { border-left: 4px solid #ffd89b; }
+        .service-tile.minio { border-left: 4px solid #c7ceea; }
+
+        .service-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .service-tile h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+
+        .service-tile .url {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: #edf2f7;
+            color: #718096;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .info-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #718096;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: help;
+        }
+
+        .info-icon:hover {
+            background: #cbd5e0;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            background: #2d3748;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 280px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .tooltip.show {
+            opacity: 1;
+        }
+
+        .setup-box {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .setup-box h4 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        .setup-box p {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 8px;
+        }
+
+        .setup-box code {
+            background: #f7fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #4a5568;
+        }
+
+        .setup-box pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+
+        .cred-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .cred-label {
+            font-weight: 600;
+            color: #4a5568;
+            min-width: 100px;
+        }
+
+        .mermaid {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 12px;
+            overflow-x: auto;
+        }
+
+        @media (max-width: 768px) {
+            .services-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ML & Data Platform</h1>
+            <p>MLflow + Apache Spark + Jupyter Lab</p>
+        </div>
+
+        <div class="services-grid">
+            <!-- MLflow -->
+            <a href="http://mlflow.lab" target="_blank" class="service-tile mlflow" data-info="Track ML experiments, log parameters, metrics, and artifacts. Manage model lifecycle from training to production deployment.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">🧪</div>
+                <h3>MLflow</h3>
+                <div class="url">mlflow.lab</div>
+                <span class="badge">Experiments</span>
+            </a>
+
+            <!-- pgAdmin -->
+            <a href="http://pgadmin.lab" target="_blank" class="service-tile pgadmin" data-info="Web-based PostgreSQL administration tool. Manage MLflow database, run queries, and monitor database performance.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">🗃️</div>
+                <h3>pgAdmin</h3>
+                <div class="url">pgadmin.lab</div>
+                <span class="badge">Database</span>
+            </a>
+
+            <!-- Spark Master -->
+            <a href="http://spark-master.lab" target="_blank" class="service-tile spark" data-info="Monitor and manage your Spark cluster. View worker nodes, running applications, and resource allocation in real-time.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">⚡</div>
+                <h3>Spark Master</h3>
+                <div class="url">spark-master.lab</div>
+                <span class="badge">Cluster</span>
+            </a>
+
+            <!-- Spark History -->
+            <a href="http://spark-history.lab" target="_blank" class="service-tile spark" data-info="Access historical Spark application logs, execution metrics, and performance analytics for completed jobs.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">📊</div>
+                <h3>Spark History</h3>
+                <div class="url">spark-history.lab</div>
+                <span class="badge">History</span>
+            </a>
+
+            <!-- Jupyter Lab -->
+            <a href="http://spark-jupyter.lab" target="_blank" class="service-tile jupyter" data-info="Interactive notebook environment with PySpark, MLflow integration, and data science libraries for exploratory analysis and ML development.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">🔬</div>
+                <h3>Jupyter Lab</h3>
+                <div class="url">spark-jupyter.lab</div>
+                <span class="badge">Notebooks</span>
+            </a>
+
+            <!-- MinIO Console -->
+            <a href="http://minio-console.lab" target="_blank" class="service-tile minio" data-info="S3-compatible object storage for MLflow artifacts, Spark data, and model files. Manage buckets, access policies, and data lifecycle.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">🗄️</div>
+                <h3>MinIO Console</h3>
+                <div class="url">minio-console.lab</div>
+                <span class="badge">Storage</span>
+            </a>
+
+            <!-- MinIO API
+            <a href="http://minio-api.lab" target="_blank" class="service-tile minio" data-info="Direct API access for programmatic interaction with object storage using S3-compatible SDKs and tools.">
+                <div class="info-icon">i</div>
+                <div class="service-icon">🔌</div>
+                <h3>MinIO API</h3>
+                <div class="url">minio-api.lab</div>
+                <span class="badge">API</span>
+            </a> -->
+        </div>
+
+        <div class="setup-box">
+            <h4>🚀 Quick Setup</h4>
+            <p>Add these to <code>/etc/hosts</code>:</p>
+            <pre>127.0.0.1 local.lab mlflow.lab pgadmin.lab
+127.0.0.1 minio-console.lab minio-api.lab
+127.0.0.1 spark-master.lab spark-history.lab spark-jupyter.lab</pre>
+        </div>
+
+        <div class="setup-box">
+            <h4>🔐 Credentials</h4>
+            <div class="cred-row">
+                <div class="cred-label">Jupyter:</div>
+                <div>Token: <code>spark123</code></div>
+            </div>
+            <div class="cred-row">
+                <div class="cred-label">pgAdmin:</div>
+                <div>Email: <code>admin@admin.com</code> | Pass: <code>admin</code></div>
+            </div>
+            <div class="cred-row">
+                <div class="cred-label">MinIO:</div>
+                <div>User: <code>minioadmin</code> | Pass: <code>minioadmin123</code></div>
+            </div>
+            <div class="cred-row">
+                <div class="cred-label">PostgreSQL:</div>
+                <div>User: <code>postgres</code> | Pass: <code>postgres</code></div>
+            </div>
+        </div>
+
+        <div class="setup-box" style="margin-top: 30px;">
+            <h4>🏗️ Architecture Diagram</h4>
+            <p style="margin-bottom: 16px;">Platform architecture showing all services and their connections</p>
+            <div class="mermaid">
+graph TB
+    subgraph External["External Access"]
+        Browser["🌐 Browser<br/>http://local.lab"]
+    end
+
+    subgraph Proxy["Reverse Proxy"]
+        Nginx["🔀 Nginx<br/>Port 80"]
+    end
+
+    subgraph ML["ML Tracking & Database"]
+        MLflow["🧪 MLflow<br/>Port 5001"]
+        Postgres["🗄️ PostgreSQL<br/>Port 5432"]
+        pgAdmin["🗃️ pgAdmin<br/>Port 5050"]
+    end
+
+    subgraph Spark["Spark Cluster"]
+        Master["⚡ Spark Master<br/>Port 7077/8080"]
+        Worker1["⚙️ Worker 1<br/>Port 8081"]
+        Worker2["⚙️ Worker 2<br/>Port 8081"]
+        History["📊 History Server<br/>Port 18080"]
+    end
+
+    subgraph Dev["Development"]
+        Jupyter["🔬 Jupyter Lab<br/>Port 8888"]
+    end
+
+    subgraph Storage["Object Storage"]
+        MinIO["🗄️ MinIO<br/>Port 9000/9001"]
+    end
+
+    subgraph Data["Shared Data"]
+        SharedData["📁 /shared/data<br/>📓 /shared/notebooks<br/>📝 /shared/spark-logs"]
+    end
+
+    %% External Connections
+    Browser -->|"HTTP Requests"| Nginx
+
+    %% Nginx Routes
+    Nginx -->|"mlflow.lab"| MLflow
+    Nginx -->|"pgadmin.lab"| pgAdmin
+    Nginx -->|"spark-master.lab"| Master
+    Nginx -->|"spark-history.lab"| History
+    Nginx -->|"spark-jupyter.lab"| Jupyter
+    Nginx -->|"minio-console.lab"| MinIO
+
+    %% ML Tracking
+    MLflow -->|"Metadata"| Postgres
+    MLflow -->|"Artifacts (S3)"| MinIO
+    pgAdmin -->|"Manage"| Postgres
+
+    %% Spark Cluster
+    Master -->|"Manage"| Worker1
+    Master -->|"Manage"| Worker2
+    Master -->|"Event Logs"| History
+    Jupyter -->|"Submit Jobs"| Master
+    Worker1 -->|"Store Logs"| History
+    Worker2 -->|"Store Logs"| History
+
+    %% Data Access
+    Jupyter -->|"Read/Write"| SharedData
+    Jupyter -->|"Track Experiments"| MLflow
+    Jupyter -->|"S3 Access"| MinIO
+    Master -->|"Read/Write"| SharedData
+    Worker1 -->|"Read/Write"| SharedData
+    Worker2 -->|"Read/Write"| SharedData
+
+    %% Styling
+    classDef proxyClass fill:#e2e8f0,stroke:#718096,stroke-width:2px
+    classDef mlClass fill:#a8dadc,stroke:#457b9d,stroke-width:2px
+    classDef sparkClass fill:#ffb4a2,stroke:#e76f51,stroke-width:2px
+    classDef devClass fill:#ffd89b,stroke:#f4a261,stroke-width:2px
+    classDef storageClass fill:#c7ceea,stroke:#6a4c93,stroke-width:2px
+    classDef dataClass fill:#b8b8ff,stroke:#7209b7,stroke-width:2px
+
+    class Nginx proxyClass
+    class MLflow,Postgres,pgAdmin mlClass
+    class Master,Worker1,Worker2,History sparkClass
+    class Jupyter devClass
+    class MinIO storageClass
+    class SharedData dataClass
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip element -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- Mermaid JS -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                fontSize: '14px',
+                fontFamily: 'Inter, sans-serif'
+            }
+        });
+    </script>
+
+    <script>
+        const tooltip = document.getElementById('tooltip');
+        const infoIcons = document.querySelectorAll('.info-icon');
+
+        infoIcons.forEach(icon => {
+            icon.addEventListener('mouseenter', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+
+                const tile = icon.closest('.service-tile');
+                const info = tile.getAttribute('data-info');
+
+                tooltip.textContent = info;
+                tooltip.classList.add('show');
+
+                const rect = icon.getBoundingClientRect();
+                tooltip.style.top = rect.bottom + 8 + 'px';
+                tooltip.style.left = rect.left - 130 + 'px';
+            });
+
+            icon.addEventListener('mouseleave', () => {
+                tooltip.classList.remove('show');
+            });
+        });
+
+        // Prevent navigation when clicking info icon
+        infoIcons.forEach(icon => {
+            icon.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+    </script>
+</body>
+</html>

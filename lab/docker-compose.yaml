@@ -1,0 +1,302 @@
+networks:
+  unified-network:
+    driver: bridge
+
+services:
+  # ============================================
+  # PostgreSQL - MLflow Backend Database
+  # ============================================
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    hostname: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - unified-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # pgAdmin - PostgreSQL Web UI
+  # ============================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    hostname: pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:5050"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+      - PGADMIN_LISTEN_PORT=5050
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json
+      - ./pgadmin/pgpassfile:/tmp/pgpassfile:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - unified-network
+
+  # ============================================
+  # MinIO - Shared Object Storage
+  # ============================================
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    hostname: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_BROWSER_REDIRECT_URL=http://minio-console.lab
+      - MINIO_STORAGE_USE_HTTPS=false
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - unified-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================
+  # MinIO Setup - Create Buckets
+  # ============================================
+  minio-setup:
+    image: quay.io/minio/mc:latest
+    container_name: minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./minio/create-bucket.sh:/create-bucket.sh
+    entrypoint: /bin/sh
+    command: -c "chmod +x /create-bucket.sh && /create-bucket.sh"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    networks:
+      - unified-network
+
+  # ============================================
+  # MLflow - Experiment Tracking Server
+  # ============================================
+  mlflow:
+    build: ./mlflow
+    image: mlflow_server
+    container_name: mlflow
+    hostname: mlflow
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT}
+      - MLFLOW_S3_IGNORE_TLS=true
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
+      --default-artifact-root s3://mlflow
+      --host 0.0.0.0
+      --port 5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - unified-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Spark Master - Cluster Manager
+  # ============================================
+  spark-master:
+    image: apache/spark:4.0.1-python3
+    container_name: spark-master
+    hostname: spark-master
+    restart: unless-stopped
+    command: >
+      bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host $${SPARK_MASTER_HOST} --port $${SPARK_MASTER_PORT} --webui-port $${SPARK_MASTER_WEBUI_PORT}"
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_LOCAL_DIRS=/tmp/spark-local
+      - SPARK_LOG_DIR=/tmp/spark-logs
+      - PYSPARK_PYTHON=/usr/bin/python3.10
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
+      - SPARK_MASTER_OPTS=-Dspark.ui.reverseProxy=true -Dspark.ui.reverseProxyUrl=http://spark-master.lab
+    ports:
+      - "7077:7077"
+    volumes:
+      - ./shared/data:/opt/spark/work-dir/data
+      - ./shared/notebooks:/opt/spark/work-dir/notebooks
+      - ./shared/spark-logs:/tmp/spark-logs
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    networks:
+      - unified-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Spark Worker - Compute Nodes (Scalable)
+  # ============================================
+  spark-worker:
+    image: apache/spark:4.0.1-python3
+    restart: unless-stopped
+    command: >
+      bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $${SPARK_MASTER_URL} --cores $${SPARK_WORKER_CORES} --memory $${SPARK_WORKER_MEMORY} --webui-port $${SPARK_WORKER_WEBUI_PORT}"
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_WEBUI_PORT=8081
+      - SPARK_LOCAL_DIRS=/tmp/spark-local
+      - SPARK_LOG_DIR=/tmp/spark-logs
+      - PYSPARK_PYTHON=/usr/bin/python3.10
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
+      - SPARK_WORKER_OPTS=-Dspark.ui.reverseProxy=true
+    depends_on:
+      - spark-master
+    volumes:
+      - ./shared/data:/opt/spark/work-dir/data
+      - ./shared/notebooks:/opt/spark/work-dir/notebooks
+      - ./shared/spark-logs:/tmp/spark-logs
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    networks:
+      - unified-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Spark History Server - Job History
+  # ============================================
+  spark-history-server:
+    image: apache/spark:4.0.1-python3
+    container_name: spark-history-server
+    hostname: spark-history-server
+    restart: unless-stopped
+    command: >
+      bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer"
+    environment:
+      - SPARK_HISTORY_OPTS=-Dspark.history.fs.logDirectory=file:///tmp/spark-logs
+      - SPARK_HISTORY_PORT=18080
+      - PYSPARK_PYTHON=/usr/bin/python3.10
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
+    volumes:
+      - ./shared/spark-logs:/tmp/spark-logs
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    networks:
+      - unified-network
+    depends_on:
+      - spark-master
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Jupyter Lab - Interactive Development
+  # ============================================
+  jupyter:
+    build:
+      context: ./jupyter
+      dockerfile: Dockerfile.jupyter
+    container_name: jupyter
+    hostname: jupyter
+    restart: unless-stopped
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=${JUPYTER_TOKEN}
+      - SPARK_HOME=/opt/spark
+      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-*.zip
+      - PYSPARK_PYTHON=/usr/bin/python3.10
+      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
+      - MLFLOW_TRACKING_URI=http://mlflow.lab
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT}
+    ports:
+      - "4040-4050:4040-4050"
+    volumes:
+      - ./shared/notebooks:/home/jovyan/work
+      - ./shared/data:/home/jovyan/data
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./shared/spark-logs:/tmp/spark-logs
+    extra_hosts:
+      - "mlflow.lab:host-gateway"
+      - "minio-console.lab:host-gateway"
+      - "minio-api.lab:host-gateway"
+    depends_on:
+      - spark-master
+      - spark-worker
+      - mlflow
+      - minio
+    networks:
+      - unified-network
+
+  # ============================================
+  # Nginx - Unified Reverse Proxy
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    hostname: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - mlflow
+      - minio
+      - spark-master
+      - spark-worker
+      - spark-history-server
+      - jupyter
+      - pgadmin
+    networks:
+      - unified-network
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  minio_data:
