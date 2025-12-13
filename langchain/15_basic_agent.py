@@ -505,44 +505,44 @@ def run_query(query: str):
 
 
 # Test the tools
-run_query("search who is albert einstein?")
+# run_query("search who is albert einstein?")
 
-run_query("what is 2 + 4")
+# run_query("what is 2 + 4")
 # run_query("what is 2 * 4")
 # run_query("what is 10 / 2")
 # run_query("what is 8 - 3?")
 
 # run_query("what is the current weather in London?")
-run_query("what is the current weather in Mumbai?")
+# run_query("what is the current weather in Mumbai?")
 # run_query("what is the current weather in San Jose, California?")
-run_query("what is the current date and time?")
+# run_query("what is the current date and time?")
 
-run_query("what is current timezone?")
+# run_query("what is current timezone?")
 # run_query("what is current time in New York?")
 # run_query("what is the current time in Tokyo?")
-run_query("what is the current time in Mumbai?")
+# run_query("what is the current time in Mumbai?")
 # run_query("what is the current time in Dubai?")
 # run_query("what is the current time in Chennai?")
 # run_query("what is the current time in Pune?")
-run_query("what is the current time in Satara?")
+# run_query("what is the current time in Satara?")
 # run_query("what is the current time in Kolhapur?")
 
-run_query("wikipedia search on Golden Gate Bridge")
+# run_query("wikipedia search on Golden Gate Bridge")
 # run_query("how much 6!")
-run_query("what is the date on next sunday?")
+# run_query("what is the date on next sunday?")
 # run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
 
-# run_query("what is the stock price of AAPL?")
-# run_query("get me stock info for TSLA")
-# run_query("get me stock info for MCX.NS")
-# run_query("get me stock info for RELIANCE.NS")
-# run_query("what is the stock price of TCS.NS?")
-# run_query("show me INFY.NS stock details")
+run_query("what is the stock price of AAPL?")
+run_query("get me stock info for TSLA")
+run_query("get me stock info for MCX.NS")
+run_query("get me stock info for RELIANCE.NS")
+run_query("what is the stock price of TCS.NS?")
+run_query("show me INFY.NS stock details")
 
 # US stocks
-# run_query("show me financial statements for AAPL")
-# run_query("what is TSLA revenue and profit?")
+run_query("show me financial statements for AAPL")
+run_query("what is TSLA revenue and profit?")
 
 # Indian stocks
-# run_query("get financial data for RELIANCE")
-# run_query("what is TCS revenue and profit?")
+run_query("get financial data for RELIANCE")
+run_query("what is TCS revenue and profit?")

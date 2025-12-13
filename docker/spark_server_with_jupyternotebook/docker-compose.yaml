@@ -11,9 +11,7 @@ services:
       - ./index.html:/usr/share/nginx/html/index.html:ro
     depends_on:
       - spark-master
-      - spark-worker-1
-      - spark-worker-2
-      - spark-worker-3
+      - spark-worker
       - spark-history-server
       - jupyter
       - minio
@@ -35,14 +33,16 @@ services:
       - SPARK_LOG_DIR=/tmp/spark-logs
       - PYSPARK_PYTHON=/usr/bin/python3.10
       - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
+      - SPARK_MASTER_OPTS=-Dspark.ui.reverseProxy=true -Dspark.ui.reverseProxyUrl=http://spark-master.lab
     ports:
       - "7077:7077" # Spark Master Port (internal communication)
     volumes:
       - ./data:/opt/spark/work-dir/data
       - ./notebooks:/opt/spark/work-dir/notebooks
-      - spark-logs:/tmp/spark-logs
+      - ./spark-logs:/tmp/spark-logs
       - ./data:/home/jovyan/data
-      - ./notebooks:/home/jovyan/work      
+      - ./notebooks:/home/jovyan/work
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       - spark-network
     healthcheck:
@@ -51,10 +51,9 @@ services:
       timeout: 10s
       retries: 3
 
-  spark-worker-1:
+  spark-worker:
     image: apache/spark:4.0.1-python3
-    container_name: spark-worker-1
-    hostname: spark-worker-1.lab
+    # No container_name to allow scaling
     restart: unless-stopped
     command: >
       bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $${SPARK_MASTER_URL} --cores $${SPARK_WORKER_CORES} --memory $${SPARK_WORKER_MEMORY} --webui-port $${SPARK_WORKER_WEBUI_PORT}"
@@ -67,19 +66,16 @@ services:
       - SPARK_LOG_DIR=/tmp/spark-logs
       - PYSPARK_PYTHON=/usr/bin/python3.10
       - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
-      - SPARK_PUBLIC_DNS=spark-worker-1.lab
-      - SPARK_LOCAL_HOSTNAME=spark-worker-1.lab
-
-    # Web UI accessed through nginx
+      - SPARK_WORKER_OPTS=-Dspark.ui.reverseProxy=true
     depends_on:
       - spark-master
     volumes:
       - ./data:/opt/spark/work-dir/data
       - ./notebooks:/opt/spark/work-dir/notebooks
-      - spark-logs:/tmp/spark-logs
+      - ./spark-logs:/tmp/spark-logs
       - ./data:/home/jovyan/data
-      - ./notebooks:/home/jovyan/work      
-
+      - ./notebooks:/home/jovyan/work
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       - spark-network
     healthcheck:
@@ -87,81 +83,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-  
-  spark-worker-2:
-    image: apache/spark:4.0.1-python3
-    container_name: spark-worker-2
-    hostname: spark-worker-2.lab
-    restart: unless-stopped
-    command: >
-      bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $${SPARK_MASTER_URL} --cores $${SPARK_WORKER_CORES} --memory $${SPARK_WORKER_MEMORY} --webui-port $${SPARK_WORKER_WEBUI_PORT}"
-    environment:
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=2g
-      - SPARK_WORKER_WEBUI_PORT=8082
-      - SPARK_LOCAL_DIRS=/tmp/spark-local
-      - SPARK_LOG_DIR=/tmp/spark-logs
-      - PYSPARK_PYTHON=/usr/bin/python3.10
-      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
-      - SPARK_PUBLIC_DNS=spark-worker-2.lab
-      - SPARK_LOCAL_HOSTNAME=spark-worker-2.lab
 
-    # Web UI accessed through nginx
-    depends_on:
-      - spark-master
-    volumes:
-      - ./data:/opt/spark/work-dir/data
-      - ./notebooks:/opt/spark/work-dir/notebooks
-      - spark-logs:/tmp/spark-logs
-      - ./data:/home/jovyan/data
-      - ./notebooks:/home/jovyan/work      
-
-    networks:
-      - spark-network
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8082" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-  
-  spark-worker-3:
-    image: apache/spark:4.0.1-python3
-    container_name: spark-worker-3
-    hostname: spark-worker-3.lab
-    restart: unless-stopped
-    command: >
-      bash -c "/opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $${SPARK_MASTER_URL} --cores $${SPARK_WORKER_CORES} --memory $${SPARK_WORKER_MEMORY} --webui-port $${SPARK_WORKER_WEBUI_PORT}"
-    environment:
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=2g
-      - SPARK_WORKER_WEBUI_PORT=8083
-      - SPARK_LOCAL_DIRS=/tmp/spark-local
-      - SPARK_LOG_DIR=/tmp/spark-logs
-      - PYSPARK_PYTHON=/usr/bin/python3.10
-      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3.10
-      - SPARK_PUBLIC_DNS=spark-worker-3.lab
-      - SPARK_LOCAL_HOSTNAME=spark-worker-3.lab
-
-    # Web UI accessed through nginx
-    depends_on:
-      - spark-master
-    volumes:
-      - ./data:/opt/spark/work-dir/data
-      - ./notebooks:/opt/spark/work-dir/notebooks
-      - spark-logs:/tmp/spark-logs
-      - ./data:/home/jovyan/data
-      - ./notebooks:/home/jovyan/work      
-
-    networks:
-      - spark-network
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8083" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-  
   spark-history-server:
     image: apache/spark:4.0.1-python3
     container_name: spark-history-server
@@ -177,7 +99,8 @@ services:
 
     # Web UI accessed through nginx
     volumes:
-      - spark-logs:/tmp/spark-logs
+      - ./spark-logs:/tmp/spark-logs
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       - spark-network
     depends_on:
@@ -211,11 +134,10 @@ services:
       - ./notebooks:/home/jovyan/work
       - ./data:/home/jovyan/data
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark-logs:/tmp/spark-logs
     depends_on:
       - spark-master
-      - spark-worker-1
-      - spark-worker-2
-      - spark-worker-3
+      - spark-worker
     networks:
       - spark-network
 

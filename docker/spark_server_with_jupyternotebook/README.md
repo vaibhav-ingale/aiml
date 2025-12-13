@@ -1,6 +1,6 @@
-# Apache Spark 4.0.1 with Jupyter Lab Docker Setup
+# Apache Spark 4.0 with Jupyter Lab Docker Setup
 
-A Docker Compose setup for running Apache Spark 4.0.1 cluster with Jupyter Lab integration for data analysis and distributed computing.
+A Docker Compose setup for running Apache Spark 4.0 cluster with Jupyter Lab integration for data analysis and distributed computing.
 
 ## Architecture
 
@@ -73,16 +73,75 @@ open http://minio-storage.lab:9001    # or http://localhost:9001
 - **Worker Resources**: 2 cores, 2GB RAM each
 - **Total Cluster**: 6 cores, 6GB RAM
 
+## Usage
+
+### PySpark in Jupyter
+
+```python
+from pyspark.sql import SparkSession
+
+# For distributed cluster mode
+spark = SparkSession.builder \
+    .master("spark://spark-master:7077") \
+    .appName("YourAppName") \
+    .config("spark.driver.host", "spark-jupyter") \
+    .config("spark.driver.bindAddress", "0.0.0.0") \
+    .getOrCreate()
+
+# For local mode (single machine)
+spark = SparkSession.builder \
+    .appName("YourAppName") \
+    .getOrCreate()
+```
 
 ### File Access
 
 Place notebooks in `./notebooks/` and data files in `./data/` - they're automatically mounted in all containers for distributed processing.
+
+### S3 Storage with MinIO
+
+```python
+import boto3
+from minio import Minio
+
+# MinIO credentials - use either .lab domain or container hostname
+endpoint_url = 'http://minio-storage.lab:9000'  # or 'http://spark-minio:9000' 
+access_key = 'minioadmin'
+secret_key = 'minioadmin123'
+
+# Using boto3 for S3 operations
+s3_client = boto3.client(
+    's3',
+    endpoint_url=endpoint_url,
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key
+)
+
+# Using MinIO client
+minio_client = Minio(
+    'minio-storage.lab:9000',  # or 'spark-minio:9000'
+    access_key=access_key,
+    secret_key=secret_key,
+    secure=False
+)
+
+# Reading S3 data with Spark
+spark.conf.set("spark.hadoop.fs.s3a.endpoint", "http://minio-storage.lab:9000")  # or "http://spark-minio:9000"
+spark.conf.set("spark.hadoop.fs.s3a.access.key", "minioadmin")
+spark.conf.set("spark.hadoop.fs.s3a.secret.key", "minioadmin123")
+spark.conf.set("spark.hadoop.fs.s3a.path.style.access", "true")
+spark.conf.set("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+
+# Load data from S3
+df = spark.read.csv("s3a://your-bucket/your-file.csv", header=True)
+```
 
 ### Features
 
 - **Auto-restart**: All containers restart automatically if they crash
 - **Shared volumes**: Files accessible across all Spark workers
 - **Hostname resolution**: UI links work properly with container hostnames
+- **S3 Storage**: MinIO provides S3-compatible object storage for big data
 
 ## Stopping
 
@@ -99,12 +158,3 @@ echo -e "127.0.0.1 spark-master.lab\n127.0.0.1 spark-worker-1.lab\n127.0.0.1 spa
 ```
 
 After adding these entries, you can access all services using their `.lab` domain names instead of localhost.
-
-## TODO:
-1. check domains are correctly mapped or we can just leave them with the .lab domain name.
-2. can not read/write from minio
-3. use jupyter 6.x version and make sure we can install jupyter notebook extentions
-4. install autocomplete extention may be : jupyter-tabnine, cell excecution time.
-5. port and install extention for https://krishnan-r.github.io/sparkmonitor/
-
-
