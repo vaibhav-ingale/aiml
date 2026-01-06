@@ -1,12 +1,13 @@
 from datetime import datetime
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 chat_history = []
 
@@ -43,7 +44,7 @@ while True:
         ai_message = model.invoke(chat_history)
         chat_history.append(ai_message)
         print("AI: ", end="")
-        print_response(ai_message, PROVIDER)
+        print_response(ai_message)
     except Exception as e:
         print(f"Error: {e}")
 

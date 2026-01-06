@@ -1,13 +1,13 @@
 # Reference: https://python.langchain.com/docs/modules/chains/popular/chains/few_shot_prompt
 
 from langchain_core.prompts import FewShotPromptTemplate, PromptTemplate
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
-from model_switcher import get_model
 
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(MODEL_NAME, MODEL_PARAMS, PROVIDER)
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 # 😂 is ^ in this context
 example_prompt = PromptTemplate.from_template("Question: {question}\n{answer}")
@@ -39,5 +39,5 @@ chain = prompt | model
 response = chain.invoke({"input": "25 😂 4"})
 print(f"Question: 25 😂 4")
 print("Answer:")
-print_response(response, PROVIDER)
+print_response(response)
 print("-" * 30)

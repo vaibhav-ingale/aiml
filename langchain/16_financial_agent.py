@@ -1,26 +1,20 @@
 """Financial Agent - Specialized agent for stock market analysis and financial data."""
 
-from mlutils import print_model_info
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
-
-import langchain
-from langchain.agents import create_agent
-
 # Import financial tools from the separate tools file
 import sys
 from pathlib import Path
 
+import langchain
+from langchain.agents import create_agent
+from mlutils import print_model_info, print_response
+from model_switcher import get_model
+
 # Add current directory to path to import the tools module
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tools_16 import (
-    calculate_market_cap_change,
-    compare_stocks,
-    get_nse_financial_statements,
-    get_nse_stock_price,
-    get_us_financial_statements,
-    get_us_stock_price,
-)
+from tools_16 import (calculate_market_cap_change, compare_stocks,
+                      get_nse_financial_statements, get_nse_stock_price,
+                      get_us_financial_statements, get_us_stock_price)
 
 print(f"Langchain version: {langchain.__version__}")
 
@@ -54,8 +48,8 @@ Guidelines:
 """
 
 # Initialize the model
-model = get_configured_model(temperature=0)
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+model = get_model(temperature=0)
+print_model_info(model)
 
 if model is None:
     print("\nERROR: Failed to initialize model. Please check:")

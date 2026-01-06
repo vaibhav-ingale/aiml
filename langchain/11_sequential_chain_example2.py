@@ -1,9 +1,9 @@
 from langchain_core.output_parsers import StrOutputParser
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
-from model_switcher import get_model
 
 from langchain.prompts import ChatPromptTemplate
 from mlutils import print_model_info, print_response
+from model_switcher import (MODEL_NAME, MODEL_PARAMS, PROVIDER,
+                            get_configured_model, get_model)
 
 llm = get_configured_model()
 print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
@@ -55,11 +55,11 @@ review = "Je trouve le goût médiocre. La mousse ne tient pas, c'est bizarre. J
 reponse = sequential_chain({"Review": review})
 print(f"Original Review: {review}")
 print(f"\nEnglish Review:")
-print_response(reponse["English_Review"], PROVIDER)
+print_response(reponse["English_Review"])
 print(f"\nSummary:")
-print_response(reponse["summary"], PROVIDER)
+print_response(reponse["summary"])
 print(f"\nFollow-up Response:")
-print_response(reponse["followup_message"], PROVIDER)
+print_response(reponse["followup_message"])
 print("=" * 60)
 
 
@@ -67,11 +67,11 @@ review = "Das Produkt ist von schlechter Qualität. Es riecht komisch und funkti
 reponse = sequential_chain({"Review": review})
 print(f"Original Review: {review}")
 print(f"\nEnglish Review:")
-print_response(reponse["English_Review"], PROVIDER)
+print_response(reponse["English_Review"])
 print(f"\nSummary:")
-print_response(reponse["summary"], PROVIDER)
+print_response(reponse["summary"])
 print(f"\nFollow-up Response:")
-print_response(reponse["followup_message"], PROVIDER)
+print_response(reponse["followup_message"])
 print("=" * 60)
 
 
@@ -80,9 +80,9 @@ review = "यह उत्पाद बहुत अच्छा है। म�
 reponse = sequential_chain({"Review": review})
 print(f"Original Review: {review}")
 print(f"\nEnglish Review:")
-print_response(reponse["English_Review"], PROVIDER)
+print_response(reponse["English_Review"])
 print(f"\nSummary:")
-print_response(reponse["summary"], PROVIDER)
+print_response(reponse["summary"])
 print(f"\nFollow-up Response:")
-print_response(reponse["followup_message"], PROVIDER)
+print_response(reponse["followup_message"])
 print("=" * 60)

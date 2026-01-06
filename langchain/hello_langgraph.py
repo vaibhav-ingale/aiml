@@ -47,7 +47,6 @@ tools = [add, multiply, divide]
 tools_by_name = {tool.name: tool for tool in tools}
 
 import operator
-
 # Step 2: Define state
 from typing import Annotated, Optional, TypedDict
 
@@ -235,7 +234,7 @@ def run_simple_query(query: str):
 
 
 if __name__ == "__main__":
-    print("Testing Ollama LangGraph Agent with gptoss:20b model")
+    print("Testing Ollama LangGraph Agent with gpt-oss:20b model")
     print("=" * 50)
 
     from IPython.display import Image, display
@@ -245,9 +244,9 @@ if __name__ == "__main__":
 
     # Make sure Ollama is running
     print("\nNote: Make sure Ollama is running locally with:")
-    print("  ollama run gptoss:20b")
+    print("  ollama run gpt-oss:20b")
     print("\nOr pull the model first if you haven't:")
-    print("  ollama pull gptoss:20b")
+    print("  ollama pull gpt-oss:20b")
     print("=" * 50)
 
     # Test the agent

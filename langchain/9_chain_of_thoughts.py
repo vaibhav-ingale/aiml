@@ -2,12 +2,13 @@
 # CoT helps models break down complex problems into step-by-step reasoning
 
 from langchain_core.prompts import FewShotPromptTemplate, PromptTemplate
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(MODEL_NAME, MODEL_PARAMS, PROVIDER)
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 # =============================================================================
 # EXAMPLE 1: Basic Chain of Thought with Math Problem
@@ -28,7 +29,7 @@ math_question = "If a store has 23 apples and sells 8 apples in the morning and 
 
 prompt = cot_prompt.format(question=math_question)
 response = model.invoke(prompt)
-print_response(response, PROVIDER)
+print_response(response)
 
 # =============================================================================
 # EXAMPLE 2: Few-Shot Chain of Thought
@@ -75,7 +76,7 @@ few_shot_prompt = FewShotPromptTemplate(
 new_question = "A library had 15 books. They gave away 7 books and received 12 new books. How many books do they have now?"
 prompt = few_shot_prompt.format(question=new_question)
 response = model.invoke(prompt)
-print_response(response, PROVIDER)
+print_response(response)
 
 # =============================================================================
 # EXAMPLE 3: Complex Reasoning Chain of Thought
@@ -104,4 +105,4 @@ complex_question = "If training a neural network requires 100 epochs, and each e
 
 prompt = complex_cot_prompt.format(question=complex_question)
 response = model.invoke(prompt)
-print_response(response, PROVIDER)
+print_response(response)

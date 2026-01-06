@@ -1,16 +1,17 @@
 """
-Quick Model Switching Examples
-Demonstrates how to switch between different LLM providers with one line of code.
-Now uses global model configuration from model_config.py
+Quick Model Example
+Demonstrates how to use the configured model with one line of code.
+Uses model configuration from model_switcher.py
 """
 
 from langchain_core.prompts import ChatPromptTemplate
-from mlutils import print_model_info, print_response
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-# Get model from global configuration (edit model_config.py to change)
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+from mlutils import print_model_info, print_response
+from model_switcher import get_model
+
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 # =============================================================================
 # MODEL CHAINING AND EXECUTION BLOCK
@@ -39,7 +40,7 @@ if model:
         response = chain.invoke({"question": question})
 
         # Print response using utility function
-        print_response(response, PROVIDER)
+        print_response(response)
 
     except Exception as e:
         print(f"Execution error: {e}")

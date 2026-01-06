@@ -4,12 +4,15 @@ Demonstrates proper usage of SystemMessage, HumanMessage, and AIMessage for vari
 """
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from mlutils import print_model_info, print_response
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
-# Get model from global configuration (edit model_config.py to change)
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+from mlutils import print_model_info, print_response
+from model_switcher import get_model
+
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
+
+
 
 print("LangChain Messages - Use Case Examples")
 print("=" * 50)
@@ -29,7 +32,7 @@ messages = [
 result = model.invoke(messages)
 print(f"Question: What is 256 divided by 7?")
 print("AI Response:")
-print_response(result, PROVIDER)
+print_response(result)
 
 # =============================================================================
 # USE CASE 2: CONVERSATION WITH CONTEXT (MULTI-TURN)
@@ -51,7 +54,7 @@ print("Human: How do I make pasta?")
 print("AI: 1. Boil salted water 2. Add pasta 3. Cook 8-12 minutes 4. Drain 5. Add sauce")
 print(f"\nHuman: What if I want to make it healthier?")
 print("AI Response:")
-print_response(result, PROVIDER)
+print_response(result)
 
 # =============================================================================
 # USE CASE 3: ROLE-BASED CONVERSATION
@@ -80,7 +83,7 @@ print("    return length * width")
 print("result = calculate_area(5, 10)")
 print("print(result)")
 print("\nCode Review:")
-print_response(result, PROVIDER)
+print_response(result)
 
 # =============================================================================
 # USE CASE 4: TASK-SPECIFIC WITH EXAMPLES (FEW-SHOT)
@@ -104,7 +107,7 @@ print("'I love this product! It works perfectly.' → POSITIVE")
 print("'This is okay, nothing special.' → NEUTRAL")
 print(f"\nNew text: 'I hate about the new features coming next month!'")
 print("AI Classification:")
-print_response(result, PROVIDER)
+print_response(result)
 
 # =============================================================================
 # USE CASE 5: CREATIVE WRITING WITH CONSTRAINTS
@@ -121,7 +124,7 @@ creative_writing = [
 result = model.invoke(creative_writing)
 print("Prompt: Write a short story about a robot learning to paint")
 print("AI Story:")
-print_response(result, PROVIDER)
+print_response(result)
 
 # =============================================================================
 # USE CASE 6: DYNAMIC CONVERSATION BUILDING
@@ -164,6 +167,6 @@ print("Q: How often should I water my houseplants?")
 print("A: Check soil moisture. Most houseplants need water when top inch is dry, usually 1-2 times per week.")
 print(f"\nQ: My plant leaves are turning yellow. What should I do?")
 print("A:")
-print_response(result, PROVIDER)
+print_response(result)
 
 print("\n" + "=" * 50)

@@ -1,11 +1,12 @@
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
 
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -49,7 +50,7 @@ while True:
 
         # Display AI response
         print("AI: ", end="")
-        print_response(assistant_message, PROVIDER)
+        print_response(assistant_message)
 
     except Exception as e:
         print(f"Error: {e}")

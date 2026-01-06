@@ -2,27 +2,24 @@
 Utility functions for LangChain examples.
 """
 
-import re
 from typing import Any
 
 
-def print_response(response: Any, provider: str = None, use_markdown: bool = True, convert_latex: bool = True):
+def print_response(response: Any, use_markdown: bool = True):
     """
-    Print model response with optional markdown formatting and LaTeX conversion.
+    Print model response with optional markdown formatting.
 
     Args:
-        response: Model response object
-        provider: Optional provider name to determine response format
+        response: Model response object or string
         use_markdown: Whether to use rich markdown formatting (default: True)
-        convert_latex: Whether to convert LaTeX to Unicode (default: True)
     """
-    # Determine if response has content attribute (ChatModels) or is a string
+    # Extract content from response object or use as string
     if hasattr(response, "content"):
         content = response.content
     else:
         content = str(response)
 
-    # Apply markdown formatting if requested
+    # Print with markdown formatting if available
     if use_markdown:
         try:
             from rich.console import Console
@@ -32,26 +29,42 @@ def print_response(response: Any, provider: str = None, use_markdown: bool = Tru
             markdown = Markdown(content)
             console.print(markdown)
         except ImportError:
-            # If rich is not installed, just print plain text
+            # Fallback to plain text if rich is not installed
             print(content)
     else:
         print(content)
 
 
-def print_model_info(provider: str, model_name: str, params: dict = None):
+def print_model_info(model: Any):
     """
     Print model configuration information.
 
     Args:
-        provider: Provider name
-        model_name: Model name
-        params: Optional model parameters
+        model: Model object (ChatOpenAI, ChatOllama, etc.)
     """
     print("=" * 60)
     print("MODEL CONFIGURATION")
     print("=" * 60)
-    print(f"Provider: {provider}")
-    print(f"Model: {model_name}")
-    if params:
-        print(f"Parameters: {params}")
+
+    # Extract model information based on type
+    model_type = type(model).__name__
+    print(f"Model API Type: {model_type}")
+
+    # Try to get common attributes
+    if hasattr(model, "model_name"):
+        print(f"Model Name: {model.model_name}")
+    elif hasattr(model, "model"):
+        print(f"Model Name: {model.model}")
+
+    if hasattr(model, "base_url"):
+        print(f"Base URL: {model.base_url}")
+    elif hasattr(model, "openai_api_base"):
+        print(f"Base URL: {model.openai_api_base}")
+
+    if hasattr(model, "temperature"):
+        print(f"Temperature: {model.temperature}")
+
+    if hasattr(model, "max_tokens"):
+        print(f"Max Tokens: {model.max_tokens}")
+
     print("=" * 60)

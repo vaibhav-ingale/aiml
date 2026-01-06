@@ -1,6 +1,6 @@
 import ollama
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama.llms import OllamaLLM
+from langchain_openai import ChatOpenAI
 
 from mlutils import print_response
 
@@ -31,7 +31,19 @@ while True:
         print("Invalid input. Please enter a valid number.")
 
 model_name = models[model_index].model
-model = OllamaLLM(model=model_name, temperature=0.1, max_tokens=100)
+
+# Custom base URL and API key configuration (OpenAI-compatible endpoint)
+base_url = "http://localhost:8008/v1"
+api_key = "ollama-rXN3JQV6DjPUr4YVwrVVW8AEsL3I1rKIK6YtoOwyk98"
+
+# Initialize model with custom base URL and API key
+model = ChatOpenAI(
+    model=model_name,
+    base_url=base_url,
+    api_key=api_key,
+    temperature=0.1,
+    max_tokens=100
+)
 chain = prompt | model
 
 # Crete series of questions

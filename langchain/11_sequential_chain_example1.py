@@ -1,12 +1,16 @@
 from langchain_core.output_parsers import StrOutputParser
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+from langchain_core.prompts import ChatPromptTemplate
+
+from mlutils import print_model_info, print_response
 from model_switcher import get_model
 
-from langchain.prompts import ChatPromptTemplate
-from mlutils import print_model_info, print_response
+# Get model from configuration (edit model_switcher.py to change settings)
+llm = get_model()
+print_model_info(llm)
 
-llm = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+prompt_for_story_title = ChatPromptTemplate.from_template(
+    "suggest 10 story titles based on the following idea: we found aliens on {planet} while we are looking for water there."
+)
 
 # First prompt template
 first_prompt = ChatPromptTemplate.from_template("What is the best name to describe a company that makes {product}?")
@@ -14,7 +18,8 @@ first_prompt = ChatPromptTemplate.from_template("What is the best name to descri
 # Second prompt template
 second_prompt = ChatPromptTemplate.from_template("Write a 100 words description for the following company: {company_name}")
 
-# Create chains using LCEL syntax
+# REF: https://blog.langchain.com/langchain-expression-language/, https://www.geeksforgeeks.org/artificial-intelligence/langchain/
+# Create chains using LCEL syntax 
 chain_one = first_prompt | llm | StrOutputParser()
 
 # Create second chain
@@ -33,9 +38,9 @@ product = "AI powered cars"
 print(f"Product: {product}")
 response = sequential_chain({"product": product})
 print(f"Company Name:")
-print_response(response["company_name"], PROVIDER)
+print_response(response["company_name"])
 print(f"\nDescription:")
-print_response(response["description"], PROVIDER)
+print_response(response["description"])
 print()
 
 print("=" * 60)
@@ -45,7 +50,7 @@ product = "AI in healthcare"
 print(f"Product: {product}")
 response = sequential_chain({"product": product})
 print(f"Company Name:")
-print_response(response["company_name"], PROVIDER)
+print_response(response["company_name"])
 print(f"\nDescription:")
-print_response(response["description"], PROVIDER)
+print_response(response["description"])
 print()

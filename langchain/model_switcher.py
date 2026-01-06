@@ -1,160 +1,98 @@
 """
-Model Switcher for LangChain
-Supports switching between Ollama and llama.cpp models.
+Simple Model Configuration for LangChain
+Configure your OpenAI-compatible endpoint or Ollama.
 """
 
-from typing import Any, Optional, Union
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
-# Import ollama module
-try:
-    import ollama
-except ImportError:
-    ollama = None
+# ============================================================
+# MODEL CONFIGURATION - Edit these settings
+# ============================================================
 
-# Import LangChain model classes
+# Provider: "openai" or "ollama"
+PROVIDER = "openai"
+# PROVIDER = "ollama"
 
-# pip install -qU "langchain[ollama]"
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    ChatOllama = None
+# OpenAI-compatible settings (for PROVIDER = "openai")
+OPENAI_MODEL = "gpt-oss:20b"
+OPENAI_BASE_URL = "http://localhost:8008/v1"
+OPENAI_API_KEY = "ollama-rXN3JQV6DjPUr4YVwrVVW8AEsL3I1rKIK6YtoOwyk98"
 
-# pip install -qU "langchain[openai]"
-# Note: Used for llama.cpp OpenAI-compatible endpoint
-try:
-    from langchain_openai import ChatOpenAI
-except ImportError:
-    ChatOpenAI = None
+# Ollama settings (for PROVIDER = "ollama")
+# OLLAMA_MODEL = "qwen3:8b"
+OLLAMA_MODEL = "gpt-oss:20b"
+OLLAMA_BASE_URL = "http://localhost:11434"
+# OLLAMA_BASE_URL = "http://localhost:8008/v1"
+OLLAMA_API_KEY = "not-needed"
 
+# Common settings
+TEMPERATURE = 0.1
+MAX_TOKENS = 5000
 
-class ModelSwitcher:
-    """Model switcher for LangChain supporting Ollama and llama.cpp."""
-
-    def __init__(self):
-        self.supported_providers = {
-            "ollama": self._get_ollama_model,
-            "llamacpp": self._get_llamacpp_model,
-        }
-
-    def get_model(self, provider: str, model_name: str, **kwargs) -> Union[Any, None]:
-        """
-        Get a model from the specified provider.
-
-        Args:
-            provider: Provider name ('ollama', 'llamacpp')
-            model_name: Model name/ID
-            **kwargs: Additional parameters for the model
-
-        Returns:
-            Initialized model instance or None if failed
-        """
-        if provider.lower() not in self.supported_providers:
-            raise ValueError(f"Unsupported provider: {provider}. Supported: {list(self.supported_providers.keys())}")
-
-        return self.supported_providers[provider.lower()](model_name, **kwargs)
-
-    def _get_ollama_model(self, model_name: str, **kwargs) -> Optional[ChatOllama]:
-        """Get Ollama chat model."""
-        if ChatOllama is None:
-            print("langchain_ollama not installed. Install: pip install langchain-ollama")
-            return None
-
-        defaults = {"temperature": 0.1}
-        defaults.update(kwargs)
-
-        return ChatOllama(model=model_name, **defaults)
-
-    def _get_llamacpp_model(self, model_name: str, **kwargs) -> Optional[ChatOpenAI]:
-        """Get llama.cpp model using OpenAI-compatible endpoint."""
-        if ChatOpenAI is None:
-            print("langchain_openai not installed. Install: pip install langchain-openai")
-            return None
-
-        # Extract base_url from kwargs, default to llama.cpp default
-        base_url = kwargs.pop("base_url", "http://localhost:8080/v1")
-
-        defaults = {
-            "temperature": 0.1,
-            "max_tokens": 100,
-            "openai_api_key": "not-needed",
-            "openai_api_base": base_url,
-        }
-        defaults.update(kwargs)
-
-        return ChatOpenAI(model=model_name, **defaults)
-
-    def list_available_providers(self) -> list:
-        """List all supported providers."""
-        return list(self.supported_providers.keys())
-
-    def list_ollama_models(self) -> list:
-        """List available Ollama models."""
-        if ollama is None:
-            print("ollama module not installed. Install: pip install ollama")
-            return []
-        try:
-            models = ollama.list()["models"]
-            return [model.model for model in models]
-        except Exception as e:
-            print(f"Error listing Ollama models: {e}")
-            return []
+# ============================================================
+# MODEL GETTER FUNCTIONS
+# ============================================================
 
 
-# Convenience function for quick model switching
-def get_model(provider: str, model_name: str, **kwargs) -> Union[Any, None]:
+def get_model(provider=None, model_name=None, base_url=None, api_key=None, temperature=None, max_tokens=None, **kwargs):
     """
-    Quick function to get any model with one line.
-
-    Examples:
-        # Ollama
-        model = get_model('ollama', 'llama2')
-
-        # llama.cpp
-        model = get_model('llamacpp', 'local-model', base_url='http://localhost:8080/v1')
-    """
-    switcher = ModelSwitcher()
-    return switcher.get_model(provider, model_name, **kwargs)
-
-
-# Default configuration (can be customized by users)
-PROVIDER = "ollama"
-MODEL_NAME = "qwen3:8b"
-# MODEL_NAME = "gpt-oss:20b"
-MODEL_PARAMS = {"temperature": 0}
-
-
-def get_configured_model(**kwargs) -> Union[Any, None]:
-    """
-    Get the model using the default configuration.
+    Get configured chat model based on provider.
 
     Args:
-        **kwargs: Additional parameters to override defaults
+        provider: Override default PROVIDER ("openai" or "ollama")
+        model_name: Override default model name
+        base_url: Override default base URL
+        api_key: Override default API key (OpenAI only)
+        temperature: Override default TEMPERATURE
+        max_tokens: Override default MAX_TOKENS
+        **kwargs: Additional parameters for the model
 
     Returns:
-        Initialized model instance using PROVIDER, MODEL_NAME, and MODEL_PARAMS
-
-    Examples:
-        # Use default configuration
-        model = get_configured_model()
-
-        # Override specific parameters
-        model = get_configured_model(temperature=0.7)
-
-        # For llama.cpp, you might need to specify base_url
-        model = get_configured_model(base_url='http://localhost:8080/v1')
+        ChatOpenAI or ChatOllama instance
     """
-    params = MODEL_PARAMS.copy()
-    params.update(kwargs)
-    return get_model(PROVIDER, MODEL_NAME, **params)
+    selected_provider = provider or PROVIDER
+
+    if selected_provider == "openai":
+        return ChatOpenAI(
+            model=model_name or OPENAI_MODEL,
+            base_url=base_url or OPENAI_BASE_URL,
+            api_key=api_key or OPENAI_API_KEY,
+            temperature=temperature if temperature is not None else TEMPERATURE,
+            max_tokens=max_tokens or MAX_TOKENS,
+            **kwargs
+        )
+    elif selected_provider == "ollama":
+        return ChatOllama(
+            model=model_name or OLLAMA_MODEL,
+            base_url=base_url or OLLAMA_BASE_URL,
+            # api_key=api_key or OLLAMA_API_KEY,
+            temperature=temperature if temperature is not None else TEMPERATURE,
+            num_predict=max_tokens or MAX_TOKENS,
+            **kwargs
+        )
+    else:
+        raise ValueError(f"Unknown provider: {selected_provider}. Use 'openai' or 'ollama'")
 
 
 if __name__ == "__main__":
-    from mlutils import print_model_info, print_response
+    # Demo usage - test the model configuration
+    print(f"Provider: {PROVIDER}")
+    if PROVIDER == "openai":
+        print(f"Model: {OPENAI_MODEL}")
+        print(f"Base URL: {OPENAI_BASE_URL}")
+    else:
+        print(f"Model: {OLLAMA_MODEL}")
+        print(f"Base URL: {OLLAMA_BASE_URL}")
+    print(f"Temperature: {TEMPERATURE}")
+    print(f"Max Tokens: {MAX_TOKENS}")
+    print("-" * 50)
 
-    # Demo usage
-    switcher = ModelSwitcher()
+    # Get the configured model
+    model = get_model()
+    print(f"Model loaded: {model}")
 
-    print("Supported providers:", switcher.list_available_providers())
-    print("\nAvailable Ollama models:", switcher.list_ollama_models())
-    model = get_configured_model()
-    print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+    # Test with a simple question
+    response = model.invoke("What is 2+2?")
+    print(f"\nTest Question: What is 2+2?")
+    print(f"Response: {response.content}")

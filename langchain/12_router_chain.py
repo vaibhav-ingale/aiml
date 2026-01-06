@@ -1,14 +1,12 @@
-import json
-import re
-
 from langchain_core.output_parsers import StrOutputParser
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+from langchain_core.prompts import ChatPromptTemplate
 
-from langchain.prompts import ChatPromptTemplate
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-llm = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
+# Get model from configuration (edit model_switcher.py to change settings)
+llm = get_model()
+print_model_info(llm)
 
 
 # Subject-specific templates
@@ -121,5 +119,5 @@ for question in questions:
     print(f"Question: {question}")
     response = route_question(question)
     print(f"Answer:")
-    print_response(response, PROVIDER)
+    print_response(response)
     print("=" * 60)

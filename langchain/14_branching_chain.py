@@ -1,15 +1,13 @@
-from langchain_ollama.llms import OllamaLLM
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableBranch
 
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableBranch
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
-llm = model
-
+# Get model from configuration (edit model_switcher.py to change settings)
+llm = get_model()
+print_model_info(llm)
 
 # Define prompt templates for different feedback types
 positive_feedback_template = ChatPromptTemplate.from_messages(
@@ -97,5 +95,5 @@ for r in review:
     result = chain.invoke({"feedback": r})
     print(f"Feedback: {r}")
     print("Response:")
-    print_response(result, PROVIDER)
+    print_response(result)
     print("-" * 80)

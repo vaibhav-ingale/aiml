@@ -1,13 +1,12 @@
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_ollama.llms import OllamaLLM
-from model_switcher import MODEL_NAME, MODEL_PARAMS, PROVIDER, get_configured_model
-from model_switcher import get_model
 
 from mlutils import print_model_info, print_response
+from model_switcher import get_model
 
-model = get_configured_model()
-print_model_info(PROVIDER, MODEL_NAME, MODEL_PARAMS)
-
+# Get model from configuration (edit model_switcher.py to change settings)
+model = get_model()
+print_model_info(model)
 
 # =============================================================================
 # BASIC PROMPT EXAMPLE:
@@ -37,4 +36,4 @@ prompt_template = ChatPromptTemplate(
 
 prompt = prompt_template.invoke({"topic": "cats and dogs"})
 response = model.invoke(prompt)
-print_response(response, PROVIDER)
+print_response(response)
