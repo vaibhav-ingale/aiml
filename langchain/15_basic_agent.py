@@ -1,3 +1,8 @@
+import calendar
+import time as time_module
+# Get current context information for the prompt
+from datetime import date, datetime, timedelta
+
 from langchain_core.tools import tool
 
 from mlutils import print_model_info
@@ -55,57 +60,85 @@ def get_current_date() -> str:
 
 
 @tool
-def calculate_future_date(days: int) -> str:
-    """Calculate a future or past date by adding/subtracting days from today.
+def manipulate_date(
+    base_date: str,
+    other_date: str | None = None,
+    diff_unit: str | None = None,
+    add_days: int = 0,
+    add_weeks: int = 0,
+    add_months: int = 0,
+    add_years: int = 0,
+) -> dict | int | str:
+    """
+    Manipulate dates or calculate differences between two dates.
 
-    Args:
-        days: Number of days to add (positive) or subtract (negative) from today.
-              For example: days=7 means 7 days from now, days=-7 means 7 days ago.
+    IMPORTANT: base_date must be an actual date in YYYY-MM-DD format (e.g., "2026-01-06"),
+    NOT a tool name. If you need current date, call get_current_date() first and use its result.
+
+    Parameters:
+    - base_date: Base date in YYYY-MM-DD format (e.g., "2026-01-06", "1986-06-13")
+    - other_date: Optional second date in YYYY-MM-DD format for difference calculation
+    - diff_unit: "days" | "weeks" | "months" | "years" | "all" (required when other_date is provided)
+    - add_days: Integer number of days to add (positive) or subtract (negative)
+    - add_weeks: Integer number of weeks to add (positive) or subtract (negative)
+    - add_months: Integer number of months to add (positive) or subtract (negative)
+    - add_years: Integer number of years to add (positive) or subtract (negative)
 
     Returns:
-        The calculated date in YYYY-MM-DD format with day of week.
+    - int: if single difference unit is requested (e.g., diff_unit="days" returns 45)
+    - dict: if diff_unit="all" (returns {"days": 45, "weeks": 6, "months": 1, "years": 0})
+    - str: ISO date string if date is modified (e.g., "2026-01-13")
+
+    Examples:
+    - Add 7 days to today: base_date="2026-01-06", add_days=7 → "2026-01-13"
+    - Get age in all units: base_date="1986-06-13", other_date="2026-01-06", diff_unit="all"
+    - Get weeks until birthday: base_date="2026-01-06", other_date="2026-06-13", diff_unit="weeks"
     """
-    from datetime import datetime, timedelta
 
-    try:
-        current_date = datetime.now()
-        future_date = current_date + timedelta(days=days)
+    def to_date(d: str) -> date:
+        return datetime.strptime(d, "%Y-%m-%d").date()
 
-        # Format: YYYY-MM-DD (Day Name)
-        formatted_date = future_date.strftime("%Y-%m-%d (%A)")
+    base = to_date(base_date)
 
-        return f"Date {days} days from today: {formatted_date}"
-    except Exception as e:
-        return f"Error calculating date: {e}"
+    # -----------------------------
+    # DATE DIFFERENCE
+    # -----------------------------
+    if other_date and diff_unit:
+        other = to_date(other_date)
+        delta_days = (other - base).days
 
+        months_diff = (other.year - base.year) * 12 + (other.month - base.month)
+        years_diff = months_diff // 12
 
-@tool
-def calculate_date_difference(date1: str, date2: str) -> str:
-    """Calculate the difference between two dates.
+        if diff_unit == "days":
+            return delta_days
+        elif diff_unit == "weeks":
+            return delta_days // 7
+        elif diff_unit == "months":
+            return months_diff
+        elif diff_unit == "years":
+            return years_diff
+        elif diff_unit == "all":
+            return {
+                "days": delta_days,
+                "weeks": delta_days // 7,
+                "months": months_diff,
+                "years": years_diff,
+            }
+        else:
+            raise ValueError("diff_unit must be days, weeks, months, years, or all")
 
-    Args:
-        date1: First date in YYYY-MM-DD format
-        date2: Second date in YYYY-MM-DD format
+    # -----------------------------
+    # DATE ADD / SUBTRACT
+    # -----------------------------
+    result = base + timedelta(days=add_days + add_weeks * 7)
 
-    Returns:
-        The difference in days, months, and years.
-    """
-    from datetime import datetime
+    total_months = result.month - 1 + add_months + add_years * 12
+    year = result.year + total_months // 12
+    month = total_months % 12 + 1
+    day = min(result.day, calendar.monthrange(year, month)[1])
 
-    try:
-        d1 = datetime.strptime(date1, "%Y-%m-%d")
-        d2 = datetime.strptime(date2, "%Y-%m-%d")
-
-        diff = abs((d2 - d1).days)
-        years = diff // 365
-        remaining_days = diff % 365
-        months = remaining_days // 30
-        days = remaining_days % 30
-
-        return f"Difference: {diff} total days ({years} years, {months} months, {days} days)"
-    except Exception as e:
-        return f"Error calculating date difference: {e}"
-
+    return date(year, month, day).isoformat()
 
 # Separate tools that the agent can chain automatically for finding the time in a city
 @tool
@@ -676,8 +709,7 @@ tools = [
     get_current_weather,
     get_current_time,
     get_current_date,
-    calculate_future_date,  
-    calculate_date_difference, 
+    manipulate_date,
     identify_timezone, 
     calculate_time_in_timezone, 
     search,
@@ -689,10 +721,7 @@ tools = [
     get_nse_financial_statements,
 ]
 
-import socket
-import time as time_module
-# Get current context information for the prompt
-from datetime import datetime
+
 
 current_datetime = datetime.now()
 current_date = current_datetime.strftime("%Y-%m-%d")
@@ -704,7 +733,7 @@ hostname = "San Jose, CA"
 # Create system prompt for the agent with chain-of-thought reasoning and context
 system_prompt = f"""You are a helpful assistant that thinks step-by-step before answering questions.
 Use the available tools to get accurate information.
-** Do not explain your reasoning in the final answer. **
+
 **CURRENT CONTEXT:**
 - Current Date: {current_date} ({current_day})
 - Current Time: {current_time}
@@ -720,12 +749,36 @@ Before using tools, think through:
 
 **DATE AND TIME INSTRUCTIONS:**
 - First, understand what the user is asking (current date? future date? past date? age?)
-- For current date: use get_current_date
-- For current time: use get_current_time
-- For future dates (e.g., '7 days from now', 'next 30 days'): use calculate_future_date with POSITIVE days
-- For past dates (e.g., '7 days ago', 'last week'): use calculate_future_date with NEGATIVE days
-- For age or date difference: First get current date, then use calculate_date_difference
+- Always use the `manipulate_date` tool when a user asks about dates.
+- Do NOT calculate dates manually.
+- **CRITICAL**: Dates must ALWAYS be in YYYY-MM-DD format when calling tools.
+- **CRITICAL**: You CANNOT nest tool calls. If you need current date, call get_current_date FIRST, wait for result, THEN use that result in manipulate_date.
+- Use:
+  - diff_unit="days" | "weeks" | "months" | "years" for a single unit
+  - diff_unit="all" when the user asks for multiple or all units (age, time difference with multiple units)
+- Use positive or negative values for add/subtract operations.
+- For current date: use get_current_date tool
+- For current time: use get_current_time tool
+- For date addition/subtraction:
+  1. FIRST call get_current_date to get today's date in YYYY-MM-DD format
+  2. THEN call manipulate_date with the actual date (e.g., "2026-01-06") as base_date
+- For date difference (age, days until, etc.):
+  1. FIRST call get_current_date to get today's date
+  2. THEN call manipulate_date with base_date=<today>, other_date=<target_date>, diff_unit="all" or specific unit
 - For time in different cities: First identify_timezone, then calculate_time_in_timezone
+
+**EXAMPLES:**
+- "What is the date 7 days from now?"
+  Step 1: Call get_current_date → Result: "2026-01-06"
+  Step 2: Call manipulate_date(base_date="2026-01-06", add_days=7) → Result: "2026-01-13"
+
+- "My DOB is 13 Jun 1986, what is my age?"
+  Step 1: Call get_current_date → Result: "2026-01-06"
+  Step 2: Call manipulate_date(base_date="1986-06-13", other_date="2026-01-06", diff_unit="all") → Result: age breakdown
+
+- "How many weeks until June 13?"
+  Step 1: Call get_current_date → Result: "2026-01-06"
+  Step 2: Call manipulate_date(base_date="2026-01-06", other_date="2026-06-13", diff_unit="weeks") → Result: number of weeks
 
 **STOCK INSTRUCTIONS:**
 - Indian stocks (NSE): use get_nse_stock_price (symbols: RELIANCE, TCS, INFY, HDFCBANK)
@@ -738,7 +791,8 @@ Before using tools, think through:
 - Show your reasoning before calling tools
 - If a tool fails, explain why and try an alternative approach
 - Be precise with tool parameters (e.g., days must be integers)
-- Keep final answers clear and concise, If possible provide answer in one line.
+- Keep final answers clear and concise, If possible provide answer in one line do not include emojis or other decorations
+** Do not explain your reasoning in the final answer. **
 """
 
 # Get model with settings optimized for reasoning
@@ -757,11 +811,11 @@ if model is None:
 model_with_tools = model.bind_tools(tools)
 
 
-def run_query(query: str, verbose: bool = True):
+def run_query(query: str, verbose: bool = False):
     """Run a query and show the tool usage and output with full message logging."""
-    print(f"\n{'=' * 80}")
+    print(f"\n{'?' * 80}")
     print(f"Query: {query}")
-    print(f"{'=' * 80}")
+    print(f"{'?' * 80}")
 
     try:
         from langchain_core.messages import (HumanMessage, SystemMessage,
@@ -775,7 +829,7 @@ def run_query(query: str, verbose: bool = True):
 
         if verbose:
             print(f"\nSystem Message:")
-            print(f"   {system_prompt[:1000]}..." if len(system_prompt) > 1000 else f"   {system_prompt}")
+            print(f"   {system_prompt[:100]}..." if len(system_prompt) > 100 else f"   {system_prompt}")
             print(f"\nHuman Message:")
             print(f"   {query}")
 
@@ -794,18 +848,18 @@ def run_query(query: str, verbose: bool = True):
 
         while hasattr(response, "tool_calls") and response.tool_calls and iteration < max_iterations:
             iteration += 1
-            print(f"\n{'─' * 80}")
-            print(f"Iteration {iteration}")
-            print(f"{'─' * 80}")
+            # print(f"\n{'─' * 80}")
+            # print(f"Iteration {iteration}")
+            # print(f"{'─' * 80}")
 
             for tool_call in response.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
                 tool_id = tool_call["id"]
 
-                print(f"\n🔧 Tool Call: {tool_name}")
-                print(f"   ID: {tool_id}")
-                print(f"   Arguments: {tool_args}")
+                # print(f"\n🔧 Tool Call: {tool_name}")
+                # print(f"   ID: {tool_id}")
+                # print(f"   Arguments: {tool_args}")
 
                 # Find and execute the tool
                 tool_to_call = None
@@ -851,9 +905,9 @@ def run_query(query: str, verbose: bool = True):
         # Extract final answer
         final_answer = response.content if hasattr(response, "content") else str(response)
 
-        print(f"\n{'*' * 80}")
+        print(f"\n{'$' * 80}")
         print(f"FINAL ANSWER: {final_answer}")
-        print(f"{'*' * 80}\n")
+        print(f"{'$' * 80}\n")
 
     except Exception as e:
         print(f"\nError: {e}")
@@ -862,45 +916,46 @@ def run_query(query: str, verbose: bool = True):
 
 
 # Test the tools
-# run_query("search who is albert einstein?")
+run_query("search who is albert einstein?")
 
-# run_query("what is 2 + 4")
-# run_query("what is 2 * 4")
-# run_query("what is 10 / 2")
-# run_query("what is 8 - 3?")
+run_query("what is 2 + 4")
+run_query("what is 2 * 4")
+run_query("what is 10 / 2")
+run_query("what is 8 - 3?")
 
-# run_query("what is the current weather in London?")
-# run_query("what is the current weather in Mumbai?")
-# run_query("what is the current weather in San Jose, California?")
-# run_query("what is the current date and time?")
+run_query("what is the current weather in London?")
+run_query("what is the current weather in Mumbai?")
+run_query("what is the current weather in San Jose, California?")
+run_query("what is the current date and time?")
 
-# run_query("what is current timezone?")
-# run_query("what is current time in New York?")
-# run_query("what is the current time in Tokyo?")
-# run_query("what is the current time in Mumbai?")
-# run_query("what is the current time in Dubai?")
-# run_query("what is the current time in Chennai?")
-# run_query("what is the current time in Pune?")
-# run_query("what is the current time in Satara?")
-# run_query("what is the current time in Kolhapur?")
+run_query("what is current timezone?")
+run_query("what is current time in New York?")
+run_query("what is the current time in Tokyo?")
+run_query("what is the current time in Mumbai?")
+run_query("what is the current time in Dubai?")
+run_query("what is the current time in Chennai?")
+run_query("what is the current time in Pune?")
+run_query("what is the current time in Satara?")
+run_query("what is the current time in Kolhapur?")
 
-# run_query("wikipedia search on Golden Gate Bridge")
-# run_query("how much 6!")
-run_query("what is the date on next 7 days?")
+run_query("wikipedia search on Golden Gate Bridge")
+run_query("how much 6!")
+run_query("what is the date after 7 days?")
 run_query("what is the date on next sunday?")
+run_query("how many weeks until my birthday on 13 june")
 run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
 
-# run_query("what is the stock price of AAPL?")
-# run_query("get me stock info for TSLA")
-# run_query("get me stock info for MCX.NS")
-# run_query("get me stock info for RELIANCE.NS")
-# run_query("what is the stock price of TCS.NS?")
-# run_query("show me INFY.NS stock details")
+run_query("what is the stock price of AAPL?")
+run_query("get me stock info for TSLA")
+run_query("get me stock info for MCX.NS")
+run_query("get me stock info for RELIANCE.NS")
+run_query("what is the stock price of TCS.NS?")
+run_query("show me INFY.NS stock details")
 
-# # US stocks
-# run_query("show me financial statements for AAPL")
-# run_query("what is TSLA revenue and profit?")
+# US stocks
+run_query("show me financial statements for AAPL")
+run_query("what is TSLA revenue and profit?")
 
-# # Indian stocks
-# run_query("get financial data for RELIANCE")
-# run_query("what is TCS revenue and profit?")
+# Indian stocks
+run_query("get financial data for RELIANCE")
+run_query("what is TCS revenue and profit?")

@@ -14,16 +14,16 @@ from langchain_openai import ChatOpenAI
 PROVIDER = "openai"
 # PROVIDER = "ollama"
 
-# OpenAI-compatible settings (for PROVIDER = "openai")
-OPENAI_MODEL = "gpt-oss:20b"
-OPENAI_BASE_URL = "http://localhost:8008/v1"
-OPENAI_API_KEY = "ollama-rXN3JQV6DjPUr4YVwrVVW8AEsL3I1rKIK6YtoOwyk98"
+# OpenAI-compatible settings (for PROVIDER = "openai") as we are using ChatOpenAI class
+# OPENAI_MODEL = "gpt-oss:20b"
+OPENAI_MODEL = "openai/gpt-oss-20b"
+# OPENAI_MODEL = "mistralai/ministral-3-3b"
+OPENAI_BASE_URL = "http://10.0.0.100:8008/v1"
+OPENAI_API_KEY = "ollama-eli4MBzJlqF1THHEB_I-E_G7vxbR2jMC"
 
-# Ollama settings (for PROVIDER = "ollama")
-# OLLAMA_MODEL = "qwen3:8b"
+# Ollama settings (for PROVIDER = "ollama") as we are using ChatOllama class
 OLLAMA_MODEL = "gpt-oss:20b"
-OLLAMA_BASE_URL = "http://localhost:11434"
-# OLLAMA_BASE_URL = "http://localhost:8008/v1"
+OLLAMA_BASE_URL = "http://10.0.0.100:11434"
 OLLAMA_API_KEY = "not-needed"
 
 # Common settings
