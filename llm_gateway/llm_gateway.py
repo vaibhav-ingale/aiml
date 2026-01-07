@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, Optional
 
 import httpx
+import tiktoken
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
@@ -38,6 +39,27 @@ app.add_middleware(
 )
 
 db = Database()
+enc = tiktoken.get_encoding("cl100k_base")
+
+def count_tokens(text: str) -> int:
+    return len(enc.encode(text))
+
+def build_prompt_text(payload: Optional[Dict]) -> str:
+    if not payload:
+        return ""
+    if "prompt" in payload and isinstance(payload["prompt"], str):
+        return payload["prompt"]
+    messages = payload.get("messages")
+    if isinstance(messages, list):
+        parts = []
+        for message in messages:
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content", "")
+            if isinstance(content, str):
+                parts.append(content)
+        return "\n".join(parts)
+    return ""
 
 def debug_log(message: str, **kwargs):
     """Log debug message if DEBUG_TOKEN_TRACKING is enabled"""
@@ -190,32 +212,52 @@ async def proxy_all(
             if is_streaming:
                 # Handle streaming response
                 async def stream_proxy():
-                    input_tokens = 0
+                    prompt_text = build_prompt_text(body)
+                    input_tokens = count_tokens(prompt_text) if prompt_text else 0
+                    output_text = ""
                     output_tokens = 0
 
                     try:
-                        async with client.stream(
-                            method=request.method,
-                            url=f"{LLM_BASE_URL}/{path}",
-                            json=body,
-                            params=request.query_params,
-                        ) as response:
-                            async for chunk in response.aiter_bytes():
-                                # Try to extract token counts from chunk
-                                try:
-                                    line = chunk.decode('utf-8').strip()
-                                    if line.startswith('data: '):
-                                        line = line[6:]
-                                    if line and line != '[DONE]':
-                                        data = json.loads(line)
-                                        if "prompt_eval_count" in data:
-                                            input_tokens = data["prompt_eval_count"]
-                                        if "eval_count" in data:
-                                            output_tokens = data["eval_count"]
-                                except:
-                                    pass
+                        async with httpx.AsyncClient(timeout=300.0) as stream_client:
+                            async with stream_client.stream(
+                                method=request.method,
+                                url=f"{LLM_BASE_URL}/{path}",
+                                json=body,
+                                params=request.query_params,
+                            ) as response:
+                                async for chunk in response.aiter_bytes():
+                                    # Try to extract token counts from chunk
+                                    try:
+                                        line = chunk.decode("utf-8").strip()
+                                        if line.startswith("data: "):
+                                            line = line[6:]
+                                        if line and line != "[DONE]":
+                                            data = json.loads(line)
+                                            if "prompt_eval_count" in data:
+                                                input_tokens = data["prompt_eval_count"]
+                                            if "eval_count" in data:
+                                                output_tokens = data["eval_count"]
+                                            choices = data.get("choices")
+                                            if isinstance(choices, list) and choices:
+                                                delta = choices[0].get("delta", {})
+                                                if isinstance(delta, dict):
+                                                    content = delta.get("content", "")
+                                                    if content:
+                                                        output_text += content
+                                    except:
+                                        pass
 
-                                yield chunk
+                                    yield chunk
+
+                        if output_text and output_tokens == 0:
+                            output_tokens = count_tokens(output_text)
+                        total_tokens = input_tokens + output_tokens
+                        debug_log(
+                            "streaming tokens",
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            total_tokens=total_tokens
+                        )
 
                         # Log usage after stream completes
                         if model_name:
@@ -295,15 +337,20 @@ async def proxy_all(
                 output_tokens = 0
                 try:
                     response_data = response.json()
-                    print("Response data:", response_data)
                     if "usage" in response_data:
                         usage = response_data["usage"]
                         input_tokens = usage.get("prompt_tokens", 0)
                         output_tokens = usage.get("completion_tokens", 0)
-
-                    print("Input tokens:", input_tokens, "Output tokens:", output_tokens)
                 except:
                     pass
+                total_tokens = input_tokens + output_tokens
+                if input_tokens or output_tokens:
+                    debug_log(
+                        "response tokens",
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens
+                    )
 
                 # Log usage
                 if model_name:

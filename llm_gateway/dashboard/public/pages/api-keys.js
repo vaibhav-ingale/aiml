@@ -9,7 +9,13 @@ export function renderApiKeys() {
       </div>
     </div>
 
+    
     <div class="grid-1">
+      <div class="card">
+        <h3>Existing API Keys</h3>
+        <div class="table-wrap" id="keysTable"></div>
+        <div id="keyActionNotice" class="notice"></div>
+      </div>
       <div class="card">
         <h3>Generate New API Key</h3>
         <div class="section-stack">
@@ -34,11 +40,7 @@ export function renderApiKeys() {
         </div>
       </div>
 
-      <div class="card">
-        <h3>Existing API Keys</h3>
-        <div class="table-wrap" id="keysTable"></div>
-        <div id="keyActionNotice" class="notice"></div>
-      </div>
+   
     </div>
   `;
 }

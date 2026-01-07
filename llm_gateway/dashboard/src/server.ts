@@ -116,7 +116,7 @@ const server = Bun.serve({
           const allowed = Array.isArray(body.allowed_models) ? body.allowed_models : [];
           const costLimit = Number(body.cost_limit || 0);
           const token = crypto.getRandomValues(new Uint8Array(24));
-          const apiKey = `ollama-${Buffer.from(token).toString("base64url")}`;
+          const apiKey = `llmgw-${Buffer.from(token).toString("base64url")}`;
           const apiKeyId = db.createApiKey(userId, apiKey, allowed, costLimit);
           return jsonResponse({ id: apiKeyId, api_key: apiKey }, 201);
         }
