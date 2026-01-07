@@ -1,0 +1,178 @@
+import { resolve } from "path";
+import { Database } from "./db";
+
+const dbPath = process.env.DB_PATH || resolve(import.meta.dir, "../../llm_gateway.db");
+const db = new Database(dbPath);
+const publicDir = resolve(import.meta.dir, "../public");
+
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(message: string, status = 400) {
+  return new Response(message, { status });
+}
+
+function parseId(pathname: string) {
+  const parts = pathname.split("/").filter(Boolean);
+  return Number(parts[parts.length - 1]);
+}
+
+async function serveFile(pathname: string) {
+  const decoded = decodeURIComponent(pathname);
+  const filePath = resolve(publicDir, "." + decoded);
+  if (!filePath.startsWith(publicDir)) {
+    return errorResponse("Forbidden", 403);
+  }
+
+  const file = Bun.file(filePath);
+  const exists = await file.exists();
+  if (!exists && decoded !== "/" && !decoded.includes(".")) {
+    return new Response(Bun.file(resolve(publicDir, "index.html")));
+  }
+
+  if (!exists) {
+    return errorResponse("Not found", 404);
+  }
+
+  return new Response(file);
+}
+
+const server = Bun.serve({
+  port: Number(process.env.DASHBOARD_PORT || 8010),
+  async fetch(req) {
+    const url = new URL(req.url);
+    const { pathname } = url;
+
+    if (pathname.startsWith("/api/")) {
+      try {
+        if (pathname === "/api/summary" && req.method === "GET") {
+          const userId = url.searchParams.get("user_id");
+          return jsonResponse(db.getSummaryStats(userId ? Number(userId) : null));
+        }
+
+        if (pathname === "/api/usage" && req.method === "GET") {
+          const days = Number(url.searchParams.get("days") || 30);
+          const userId = url.searchParams.get("user_id");
+          return jsonResponse(db.getUsageStats(userId ? Number(userId) : null, days));
+        }
+
+        if (pathname === "/api/users" && req.method === "GET") {
+          return jsonResponse(db.getAllUsers());
+        }
+
+        if (pathname === "/api/users/with-stats" && req.method === "GET") {
+          const users = db.getAllUsers();
+          const payload = users.map((user) => {
+            const summary = db.getSummaryStats(user.id);
+            const apiKeys = db.getUserApiKeys(user.id);
+            return {
+              ...user,
+              total_requests: summary.total_requests,
+              total_cost: summary.total_cost,
+              api_keys_count: apiKeys.length,
+            };
+          });
+          return jsonResponse(payload);
+        }
+
+        if (pathname.startsWith("/api/users/") && pathname.endsWith("/api-keys") && req.method === "GET") {
+          const userId = parseId(pathname.replace("/api-keys", ""));
+          return jsonResponse(db.getUserApiKeys(userId));
+        }
+
+        if (pathname.startsWith("/api/users/") && req.method === "GET") {
+          const userId = parseId(pathname);
+          const user = db.getUser(userId);
+          if (!user) return errorResponse("User not found", 404);
+          return jsonResponse(user);
+        }
+
+        if (pathname === "/api/users" && req.method === "POST") {
+          const body = await req.json();
+          if (!body.username) return errorResponse("Username required", 400);
+          const userId = db.createUser(body.username);
+          if (!userId) return errorResponse("Username already exists", 409);
+          return jsonResponse({ id: userId }, 201);
+        }
+
+        if (pathname.startsWith("/api/users/") && req.method === "DELETE") {
+          const userId = parseId(pathname);
+          db.deleteUser(userId);
+          return new Response(null, { status: 204 });
+        }
+
+        if (pathname === "/api/api-keys" && req.method === "GET") {
+          return jsonResponse(db.getAllApiKeys());
+        }
+
+        if (pathname === "/api/api-keys" && req.method === "POST") {
+          const body = await req.json();
+          const userId = Number(body.user_id);
+          if (!userId) return errorResponse("User ID required", 400);
+          const allowed = Array.isArray(body.allowed_models) ? body.allowed_models : [];
+          const costLimit = Number(body.cost_limit || 0);
+          const token = crypto.getRandomValues(new Uint8Array(24));
+          const apiKey = `ollama-${Buffer.from(token).toString("base64url")}`;
+          const apiKeyId = db.createApiKey(userId, apiKey, allowed, costLimit);
+          return jsonResponse({ id: apiKeyId, api_key: apiKey }, 201);
+        }
+
+        if (pathname.startsWith("/api/api-keys/") && req.method === "PATCH") {
+          const apiKeyId = parseId(pathname);
+          const body = await req.json();
+          if (typeof body.is_active !== "boolean") return errorResponse("is_active required", 400);
+          const apiKey = db.getApiKeyById(apiKeyId);
+          if (!apiKey) return errorResponse("API key not found", 404);
+          if (body.is_active && !apiKey.is_active) {
+            return errorResponse("Disabled API keys cannot be re-enabled", 400);
+          }
+          db.updateApiKeyStatus(apiKeyId, body.is_active);
+          return new Response(null, { status: 204 });
+        }
+
+        if (pathname.startsWith("/api/api-keys/") && req.method === "DELETE") {
+          const apiKeyId = parseId(pathname);
+          db.deleteApiKey(apiKeyId);
+          return new Response(null, { status: 204 });
+        }
+
+        if (pathname === "/api/models" && req.method === "GET") {
+          return jsonResponse(db.getAllModels());
+        }
+
+        if (pathname === "/api/models" && req.method === "POST") {
+          const body = await req.json();
+          if (!body.model_name) return errorResponse("Model name required", 400);
+          const modelId = db.addModel(
+            body.model_name,
+            Number(body.input_cost_per_1k || 0),
+            Number(body.output_cost_per_1k || 0)
+          );
+          return jsonResponse({ id: modelId }, 201);
+        }
+
+        if (pathname.startsWith("/api/models/") && req.method === "DELETE") {
+          const modelId = parseId(pathname);
+          db.deleteModel(modelId);
+          return new Response(null, { status: 204 });
+        }
+
+        return errorResponse("Not found", 404);
+      } catch (error) {
+        return errorResponse(error instanceof Error ? error.message : "Server error", 500);
+      }
+    }
+
+    if (pathname === "/") {
+      return new Response(Bun.file(resolve(publicDir, "index.html")));
+    }
+
+    return await serveFile(pathname);
+  },
+});
+
+console.log(`Dashboard running on http://localhost:${server.port}`);

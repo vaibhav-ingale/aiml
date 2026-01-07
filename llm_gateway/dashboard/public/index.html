@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ollama Gateway Dashboard</title>
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div class="ambient"></div>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand-row">
+          <div class="brand">
+            <button class="brand-mark sidebar-toggle" id="sidebarToggle" type="button" aria-label="Toggle sidebar">
+              <i class="fa-brands fa-autoprefixer"></i>
+            </button>
+            <div class="brand-text">
+              <div class="brand-title">LLM Gateway</div>
+              <div class="brand-subtitle">Control Tower</div>
+            </div>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-link active" data-route="dashboard" aria-label="Dashboard">
+            <span class="nav-icon"><i class="fa-solid fa-gauge-high"></i></span>
+            <span class="nav-text">Dashboard</span>
+          </button>
+          <button class="nav-link" data-route="users" aria-label="Users">
+            <span class="nav-icon"><i class="fa-solid fa-users"></i></span>
+            <span class="nav-text">Users</span>
+          </button>
+          <button class="nav-link" data-route="api-keys" aria-label="API Keys">
+            <span class="nav-icon"><i class="fa-solid fa-key"></i></span>
+            <span class="nav-text">API Keys</span>
+          </button>
+          <button class="nav-link" data-route="models" aria-label="Models">
+            <span class="nav-icon"><i class="fa-solid fa-cubes"></i></span>
+            <span class="nav-text">Models</span>
+          </button>
+          <button class="nav-link" data-route="analytics" aria-label="Analytics">
+            <span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>
+            <span class="nav-text">Analytics</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="pill">LLM Gateway v2.0</div>
+          <div class="sidebar-note">Manage users, keys, costs, models and usage.</div>
+        </div>
+      </aside>
+      <main class="content">
+        <!-- <header class="topbar">
+          <div>
+            <div class="topbar-title">Operational Overview</div>
+            <div class="topbar-subtitle">Live metrics with grounded cost insight.</div>
+          </div> 
+          <div class="topbar-badge">Open Source Edition</div>
+        </header> -->
+        <section id="page" class="page"></section>
+        <footer class="footer-line">Made with ❤️ and CHAI</footer>
+      </main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
