@@ -429,4 +429,20 @@ export class Database {
     const result = this.db.query(query).run(...params);
     return result.changes;
   }
+
+  getUniqueSessions() {
+    const rows = this.db.query(`
+      SELECT DISTINCT session_id, COUNT(*) as trace_count, MAX(created_at) as last_activity
+      FROM usage_logs
+      WHERE session_id IS NOT NULL AND session_id != ''
+      GROUP BY session_id
+      ORDER BY last_activity DESC
+    `).all() as any[];
+
+    return rows.map((row) => ({
+      session_id: row.session_id,
+      trace_count: row.trace_count,
+      last_activity: row.last_activity,
+    }));
+  }
 }

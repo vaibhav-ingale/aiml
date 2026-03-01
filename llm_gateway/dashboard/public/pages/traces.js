@@ -7,6 +7,7 @@ let pageSize = 50;
 let totalTraces = 0;
 let selectedTraces = new Set();
 let currentSessionFilter = null;
+let availableSessions = [];
 
 // Column visibility configuration
 const DEFAULT_COLUMNS = {
@@ -83,16 +84,16 @@ export function renderTraces() {
       <div class="card-header">
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
           <h2>Request Traces</h2>
-          <div id="sessionFilterBadge" style="display: none; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(88, 166, 255, 0.15); border: 1px solid rgba(88, 166, 255, 0.4); border-radius: 6px; font-size: 12px; color: #58a6ff;">
-            <i class="fa-solid fa-filter"></i>
-            <span style="font-weight: 500;">Session:</span>
-            <code id="sessionFilterText" style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; font-size: 11px;"></code>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="sessionFilter" style="font-size: 13px; color: var(--muted); white-space: nowrap;">
+              <i class="fa-solid fa-filter"></i> Session:
+            </label>
+            <select id="sessionFilter" style="min-width: 200px; max-width: 300px; padding: 6px 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: var(--text); font-size: 13px; cursor: pointer;">
+              <option value="">All Sessions</option>
+            </select>
           </div>
         </div>
         <div class="card-actions">
-          <button id="showAllTraces" class="btn-secondary" style="display: none;">
-            <i class="fa-solid fa-list"></i>&nbsp; Show All Traces
-          </button>
           <button id="columnSettings" class="btn-secondary">
             <i class="fa-solid fa-columns"></i> Columns
           </button>
@@ -143,27 +144,23 @@ export async function afterRenderTraces() {
   selectedTraces.clear();
   currentSessionFilter = null;
   updateSelectionUI();
+  await loadSessions();
   await loadTraces();
 
   document.getElementById("refreshTraces")?.addEventListener("click", async () => {
     currentPage = 0;
     selectedTraces.clear();
+    await loadSessions();
     await loadTraces();
   });
 
-  // Show All Traces button (clears session filter)
-  document.getElementById("showAllTraces")?.addEventListener("click", () => {
-    currentSessionFilter = null;
+  // Session filter change handler
+  document.getElementById("sessionFilter")?.addEventListener("change", async (e) => {
+    const selectedSession = e.target.value;
+    currentSessionFilter = selectedSession || null;
     currentPage = 0;
-    const filterBadge = document.getElementById("sessionFilterBadge");
-    const showAllBtn = document.getElementById("showAllTraces");
-    if (filterBadge) {
-      filterBadge.style.display = "none";
-    }
-    if (showAllBtn) {
-      showAllBtn.style.display = "none";
-    }
-    loadTraces();
+    selectedTraces.clear();
+    await loadTraces();
   });
 
   document.getElementById("deleteSelected")?.addEventListener("click", async () => {
@@ -312,6 +309,37 @@ function openColumnSettings() {
 
 function closeColumnSettings() {
   document.getElementById('columnModal').style.display = 'none';
+}
+
+async function loadSessions() {
+  try {
+    const sessions = await api('traces/sessions');
+    availableSessions = sessions;
+
+    const sessionFilter = document.getElementById('sessionFilter');
+    if (sessionFilter) {
+      // Save current selection
+      const currentSelection = sessionFilter.value;
+
+      // Clear existing options except the first "All Sessions"
+      sessionFilter.innerHTML = '<option value="">All Sessions</option>';
+
+      // Add session options
+      sessions.forEach(session => {
+        const option = document.createElement('option');
+        option.value = session.session_id;
+        option.textContent = `${session.session_id} (${session.trace_count} trace${session.trace_count > 1 ? 's' : ''})`;
+        sessionFilter.appendChild(option);
+      });
+
+      // Restore selection if it still exists
+      if (currentSelection && sessions.some(s => s.session_id === currentSelection)) {
+        sessionFilter.value = currentSelection;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load sessions:", error);
+  }
 }
 
 async function loadTraces() {

@@ -171,12 +171,9 @@ const server = Bun.serve({
           return jsonResponse({ traces, total, limit, offset });
         }
 
-        if (pathname.startsWith("/api/traces/") && req.method === "GET") {
-          const traceId = pathname.split("/").filter(Boolean).pop();
-          if (!traceId) return errorResponse("Trace ID required", 400);
-          const trace = db.getTraceById(traceId);
-          if (!trace) return errorResponse("Trace not found", 404);
-          return jsonResponse(trace);
+        if (pathname === "/api/traces/sessions" && req.method === "GET") {
+          const sessions = db.getUniqueSessions();
+          return jsonResponse(sessions);
         }
 
         if (pathname === "/api/traces/clear" && req.method === "DELETE") {
@@ -191,6 +188,14 @@ const server = Bun.serve({
           }
           const deletedCount = db.deleteTraces(body.traceIds);
           return jsonResponse({ success: true, deletedCount });
+        }
+
+        if (pathname.startsWith("/api/traces/") && req.method === "GET") {
+          const traceId = pathname.split("/").filter(Boolean).pop();
+          if (!traceId) return errorResponse("Trace ID required", 400);
+          const trace = db.getTraceById(traceId);
+          if (!trace) return errorResponse("Trace not found", 404);
+          return jsonResponse(trace);
         }
 
         return errorResponse("Not found", 404);
