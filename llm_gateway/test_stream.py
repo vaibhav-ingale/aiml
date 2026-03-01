@@ -2,15 +2,15 @@ import json
 
 import requests
 
-url = "http://localhost:8008/v1/chat/completions"
+url = "http://10.0.0.100:8008/v1/chat/completions"
 headers = {
-    "Authorization": "Bearer llmgw-W-OZiZlYmVFkIaweZmr0C852r1lrtd89",
+    "Authorization": "Bearer llmgw-ANCUyGuAKn3-43J4uleD0bRDTvTGRM7b",
     "Content-Type": "application/json",
 }
 payload = {
     "model": "openai/gpt-oss-20b",
     "stream": True,
-    "messages": [{"role": "user", "content": "Count to 1000."}],
+    "messages": [{"role": "user", "content": "Count to 10."}],
 }
 
 try:

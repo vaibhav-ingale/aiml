@@ -243,7 +243,9 @@ export class Database {
         status,
         user_id,
         user_message,
-        assistant_message
+        assistant_message,
+        tool_name,
+        tool_call_type
       FROM usage_logs
     `;
 

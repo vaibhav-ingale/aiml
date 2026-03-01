@@ -1,5 +1,7 @@
 import { api, formatNumber, formatMoney, formatDate, showNotification, showConfirm } from "../lib.js";
 
+console.log('🔧 Traces.js loaded - Tool column support enabled v2');
+
 let currentPage = 0;
 let pageSize = 50;
 let totalTraces = 0;
@@ -13,6 +15,7 @@ const DEFAULT_COLUMNS = {
   session_id: true,
   timestamp: true,
   model: true,
+  tool_name: true,
   user_message: false,
   assistant_message: false,
   input_tokens: true,
@@ -29,7 +32,11 @@ let visibleColumns = { ...DEFAULT_COLUMNS };
 try {
   const saved = localStorage.getItem('traces_columns');
   if (saved) {
-    visibleColumns = { ...DEFAULT_COLUMNS, ...JSON.parse(saved) };
+    const savedColumns = JSON.parse(saved);
+    // Merge saved with defaults, ensuring new columns get their default value
+    visibleColumns = { ...DEFAULT_COLUMNS, ...savedColumns };
+    // Save merged version to ensure new columns are persisted
+    localStorage.setItem('traces_columns', JSON.stringify(visibleColumns));
   }
 } catch (e) {
   console.error('Failed to load column preferences:', e);
@@ -237,6 +244,7 @@ function openColumnSettings() {
       { key: 'session_id', label: 'Session ID', icon: 'fa-layer-group' },
       { key: 'timestamp', label: 'Timestamp', icon: 'fa-clock' },
       { key: 'model', label: 'Model', icon: 'fa-microchip' },
+      { key: 'tool_name', label: 'Tool Name', icon: 'fa-wrench' },
       { key: 'status', label: 'Status', icon: 'fa-circle-check' }
     ],
     'Messages': [
@@ -315,6 +323,9 @@ async function loadTraces() {
     }
     const data = await api(url);
     totalTraces = data.total;
+    console.log('Loaded traces:', data.traces.length);
+    console.log('First trace tool_name:', data.traces[0]?.tool_name);
+    console.log('Visible columns:', visibleColumns);
     renderTracesTable(data.traces);
     renderPagination();
   } catch (error) {
@@ -333,6 +344,7 @@ function renderTracesTable(traces) {
     { key: 'session_id', label: 'Session ID', width: '180px', resizable: true },
     { key: 'timestamp', label: 'Timestamp', width: '180px', resizable: true },
     { key: 'model', label: 'Model', width: '200px', resizable: true },
+    { key: 'tool_name', label: 'Tool Name', width: '150px', resizable: true },
     { key: 'user_message', label: 'Request Text', width: '300px', resizable: true },
     { key: 'assistant_message', label: 'Response Text', width: '300px', resizable: true },
     { key: 'input_tokens', label: 'Request Tokens', width: '120px', resizable: true },
@@ -401,6 +413,11 @@ function renderTracesTable(traces) {
               ` : ''}
               ${visibleColumns.model ? `
               <td class="trace-clickable" style="cursor: pointer;">${trace.model_name || "-"}</td>
+              ` : ''}
+              ${visibleColumns.tool_name ? `
+              <td class="trace-clickable" style="cursor: pointer;">
+                ${trace.tool_name ? `<span class="tool-badge"><i class="fa-solid fa-wrench"></i> ${trace.tool_name}</span>` : "-"}
+              </td>
               ` : ''}
               ${visibleColumns.user_message ? `
               <td class="trace-clickable" style="cursor: pointer; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${trace.user_message || ''}">${truncateText(trace.user_message, 100)}</td>
@@ -678,6 +695,18 @@ async function showTraceDetails(traceId) {
               <span>${trace.stream_setting}</span>
             </div>
             ` : ''}
+            ${trace.tool_name ? `
+            <div class="trace-field">
+              <label>Tool Name:</label>
+              <span class="tool-badge"><i class="fa-solid fa-wrench"></i> ${trace.tool_name}</span>
+            </div>
+            ` : ''}
+            ${trace.tool_call_type ? `
+            <div class="trace-field">
+              <label>Tool Call Type:</label>
+              <span>${trace.tool_call_type}</span>
+            </div>
+            ` : ''}
           </div>
         </div>
 
@@ -748,7 +777,7 @@ async function showTraceDetails(traceId) {
             Tool Calls
           </h3>
           <div class="collapsible-content">
-            <pre class="trace-code"><code>${escapeHtml(JSON.stringify(trace.assistant_tool_calls, null, 2))}</code></pre>
+            ${renderToolCalls(trace.assistant_tool_calls)}
           </div>
         </div>
         ` : ''}
@@ -795,6 +824,41 @@ function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+function renderToolCalls(toolCalls) {
+  try {
+    const calls = Array.isArray(toolCalls) ? toolCalls : [toolCalls];
+
+    return calls.map((call, index) => {
+      const toolName = call.function?.name || call.name || 'Unknown Tool';
+      const toolArgs = call.function?.arguments || call.arguments || call.input || '{}';
+
+      // Parse arguments if it's a string
+      let parsedArgs;
+      try {
+        parsedArgs = typeof toolArgs === 'string' ? JSON.parse(toolArgs) : toolArgs;
+      } catch {
+        parsedArgs = toolArgs;
+      }
+
+      return `
+        <div style="margin-bottom: ${index < calls.length - 1 ? '20px' : '0'}; padding-bottom: ${index < calls.length - 1 ? '20px' : '0'}; border-bottom: ${index < calls.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none'};">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span class="tool-badge"><i class="fa-solid fa-wrench"></i> ${escapeHtml(toolName)}</span>
+            ${call.id ? `<code style="font-size: 10px; color: var(--muted);">ID: ${escapeHtml(call.id)}</code>` : ''}
+          </div>
+          <div>
+            <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">Parameters:</div>
+            <pre class="trace-code"><code>${escapeHtml(JSON.stringify(parsedArgs, null, 2))}</code></pre>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    // Fallback to raw JSON display
+    return `<pre class="trace-code"><code>${escapeHtml(JSON.stringify(toolCalls, null, 2))}</code></pre>`;
+  }
 }
 
 // Make toggleSection available globally for collapsible sections

@@ -46,6 +46,43 @@ enc = tiktoken.get_encoding("cl100k_base")
 def count_tokens(text: str) -> int:
     return len(enc.encode(text))
 
+def extract_tool_info(response_data: Optional[Dict]) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Extract tool call information from response data.
+    Returns: (tool_name, tool_call_type, assistant_tool_calls_json)
+    """
+    tool_name = None
+    tool_call_type = None
+    assistant_tool_calls = None
+
+    if not response_data:
+        return tool_name, tool_call_type, assistant_tool_calls
+
+    try:
+        if "choices" in response_data and response_data["choices"]:
+            choice = response_data["choices"][0]
+            if "message" in choice:
+                message = choice["message"]
+
+                # Check for tool_calls in the message
+                if "tool_calls" in message and message["tool_calls"]:
+                    tool_calls_list = message["tool_calls"]
+                    assistant_tool_calls = json.dumps(tool_calls_list)
+
+                    # Get the first tool call's name
+                    first_tool = tool_calls_list[0]
+                    if "function" in first_tool:
+                        tool_name = first_tool["function"].get("name")
+                        tool_call_type = "function"
+                    elif "type" in first_tool:
+                        tool_call_type = first_tool["type"]
+                        if tool_call_type == "function" and "function" in first_tool:
+                            tool_name = first_tool["function"].get("name")
+    except Exception as e:
+        logger.debug(f"Error extracting tool info: {e}")
+
+    return tool_name, tool_call_type, assistant_tool_calls
+
 def build_prompt_text(payload: Optional[Dict]) -> str:
     if not payload:
         return ""
@@ -281,6 +318,8 @@ async def proxy_all(
                             system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
                             user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
 
+                            # Note: Streaming responses don't typically include tool calls in chunks
+                            # Tool information would need to be extracted from accumulated response
                             db.log_usage(
                                 api_key_id=key_info["id"],
                                 user_id=key_info["user_id"],
@@ -301,6 +340,8 @@ async def proxy_all(
                                 assistant_message=output_text if output_text else None,
                                 stream_setting="true" if is_streaming else "false",
                                 temperature=body.get("temperature") if body else None,
+                                tool_name=None,
+                                tool_call_type=None,
                                 request_time=request_time
                             )
 
@@ -334,6 +375,8 @@ async def proxy_all(
                                 user_message=user_msg,
                                 stream_setting="true" if is_streaming else "false",
                                 temperature=body.get("temperature") if body else None,
+                                tool_name=None,
+                                tool_call_type=None,
                                 request_time=request_time
                             )
                         raise
@@ -374,6 +417,9 @@ async def proxy_all(
                 output_tokens = 0
                 response_data = None
                 assistant_msg = None
+                tool_name = None
+                tool_call_type = None
+                assistant_tool_calls = None
                 try:
                     response_data = response.json()
                     if "usage" in response_data:
@@ -385,6 +431,8 @@ async def proxy_all(
                         choice = response_data["choices"][0]
                         if "message" in choice:
                             assistant_msg = choice["message"].get("content")
+                    # Extract tool information
+                    tool_name, tool_call_type, assistant_tool_calls = extract_tool_info(response_data)
                 except:
                     pass
                 total_tokens = input_tokens + output_tokens
@@ -430,8 +478,11 @@ async def proxy_all(
                         system_message=system_msg,
                         user_message=user_msg,
                         assistant_message=assistant_msg,
+                        assistant_tool_calls=assistant_tool_calls,
                         stream_setting="false",
                         temperature=body.get("temperature") if body else None,
+                        tool_name=tool_name,
+                        tool_call_type=tool_call_type,
                         request_time=request_time
                     )
 
@@ -487,6 +538,8 @@ async def proxy_all(
                 user_message=user_msg,
                 stream_setting="true" if is_streaming else "false",
                 temperature=body.get("temperature") if body else None,
+                tool_name=None,
+                tool_call_type=None,
                 request_time=request_time
             )
 

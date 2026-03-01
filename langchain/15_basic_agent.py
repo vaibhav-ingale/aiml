@@ -1,6 +1,5 @@
 import calendar
 import time as time_module
-
 # Get current context information for the prompt
 from datetime import date, datetime, timedelta
 
@@ -786,7 +785,8 @@ def run_query(query: str, verbose: bool = True):
     print(f"{'?' * 80}")
 
     try:
-        from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+        from langchain_core.messages import (HumanMessage, SystemMessage,
+                                             ToolMessage)
 
         # Build message history with system prompt
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=query)]
@@ -869,23 +869,23 @@ def run_query(query: str, verbose: bool = True):
 
 
 # Test the tools
-# run_query("search who is albert einstein?")
+run_query("search who is albert einstein?")
 
-# run_query("what is 2 + 4")
-# run_query("what is 2 * 4")
-# run_query("what is 10 / 2")
-# run_query("what is 8 - 3?")
+run_query("what is 2 + 4")
+run_query("what is 2 * 4")
+run_query("what is 10 / 2")
+run_query("what is 8 - 3?")
 
-# run_query("what is the current weather in London?")
+run_query("what is the current weather in London?")
 # run_query("what is the current weather in Mumbai?")
 # run_query("what is the current weather in San Jose, California?")
-# run_query("what is the current date and time?")
+run_query("what is the current date and time?")
 
 run_query("what is current timezone?")
 # run_query("what is current time in New York?")
-# run_query("what is the current time in Tokyo?")
+run_query("what is the current time in Tokyo?")
 # run_query("what is the current time in Mumbai?")
-# run_query("what is the current time in Dubai?")
+run_query("what is the current time in Dubai?")
 # run_query("what is the current time in Chennai?")
 # run_query("what is the current time in Pune?")
 # run_query("what is the current time in Satara?")
@@ -899,7 +899,7 @@ run_query("what is current timezone?")
 # run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
 
 # run_query("what is the stock price of AAPL?")
-# run_query("get me stock info for TSLA")
+run_query("get me stock info for TSLA")
 # run_query("get me stock info for MCX.NS")
 # run_query("get me stock info for RELIANCE.NS")
 # run_query("what is the stock price of TCS.NS?")
