@@ -173,6 +173,7 @@ export async function afterRenderTraces() {
         });
         selectedTraces.clear();
         await loadTraces();
+        updateSelectionUI();
         alert(`✓ ${count} trace${count > 1 ? 's have' : ' has'} been deleted successfully.`);
       } catch (error) {
         alert(`Failed to delete traces: ${error.message}`);
