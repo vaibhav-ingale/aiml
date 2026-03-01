@@ -3,6 +3,7 @@ import { renderUsers, afterRenderUsers } from "./pages/users.js";
 import { renderApiKeys, afterRenderApiKeys } from "./pages/api-keys.js";
 import { renderModels, afterRenderModels } from "./pages/models.js";
 import { renderAnalytics, afterRenderAnalytics } from "./pages/analytics.js";
+import { renderTraces, afterRenderTraces } from "./pages/traces.js";
 
 const routes = {
   dashboard: {
@@ -24,6 +25,10 @@ const routes = {
   analytics: {
     render: renderAnalytics,
     afterRender: afterRenderAnalytics,
+  },
+  traces: {
+    render: renderTraces,
+    afterRender: afterRenderTraces,
   },
 };
 

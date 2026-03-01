@@ -55,6 +55,9 @@ export class Database {
         FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
+
+      CREATE INDEX IF NOT EXISTS idx_trace_id ON usage_logs(trace_id);
+      CREATE INDEX IF NOT EXISTS idx_created_at ON usage_logs(created_at DESC);
     `);
   }
 
@@ -222,5 +225,182 @@ export class Database {
       total_cost: row?.total_cost || 0,
       avg_response_time: row?.avg_response_time || 0,
     };
+  }
+
+  getTraces(limit = 100, offset = 0, userId: number | null = null) {
+    let query = `
+      SELECT
+        id,
+        trace_id,
+        created_at as timestamp,
+        model_name,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        response_time,
+        cost,
+        status,
+        user_id
+      FROM usage_logs
+    `;
+
+    const params: any[] = [];
+    if (userId !== null) {
+      query += ` WHERE user_id = ?`;
+      params.push(userId);
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    return this.db.query(query).all(...params) as any[];
+  }
+
+  getTraceById(traceId: string | number) {
+    // Convert to number if it's a numeric string
+    const numericId = Number(traceId);
+    const isNumeric = !isNaN(numericId);
+
+    let row;
+    if (isNumeric) {
+      // If it's a valid number, search by both trace_id string and id number
+      row = this.db
+        .query(
+          `SELECT
+            id,
+            trace_id,
+            session_id,
+            created_at as timestamp,
+            model_name,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            response_time,
+            cost,
+            status,
+            error_message,
+            request_payload,
+            response_payload,
+            system_message,
+            user_message,
+            assistant_message,
+            assistant_tool_calls,
+            tool_responses,
+            stream_setting,
+            temperature,
+            tool_call_type,
+            tool_name,
+            endpoint,
+            user_id,
+            api_key_id
+          FROM usage_logs
+          WHERE trace_id = ? OR id = ?`
+        )
+        .get(String(traceId), numericId) as any;
+    } else {
+      // If it's a non-numeric string, only search by trace_id
+      row = this.db
+        .query(
+          `SELECT
+            id,
+            trace_id,
+            session_id,
+            created_at as timestamp,
+            model_name,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            response_time,
+            cost,
+            status,
+            error_message,
+            request_payload,
+            response_payload,
+            system_message,
+            user_message,
+            assistant_message,
+            assistant_tool_calls,
+            tool_responses,
+            stream_setting,
+            temperature,
+            tool_call_type,
+            tool_name,
+            endpoint,
+            user_id,
+            api_key_id
+          FROM usage_logs
+          WHERE trace_id = ?`
+        )
+        .get(String(traceId)) as any;
+    }
+
+    if (!row) return null;
+
+    // Parse JSON fields if they exist
+    if (row.request_payload) {
+      try {
+        row.request_payload = JSON.parse(row.request_payload);
+      } catch {
+        // Keep as string if parsing fails
+      }
+    }
+
+    if (row.response_payload) {
+      try {
+        row.response_payload = JSON.parse(row.response_payload);
+      } catch {
+        // Keep as string if parsing fails
+      }
+    }
+
+    if (row.assistant_tool_calls) {
+      try {
+        row.assistant_tool_calls = JSON.parse(row.assistant_tool_calls);
+      } catch {
+        // Keep as string if parsing fails
+      }
+    }
+
+    if (row.tool_responses) {
+      try {
+        row.tool_responses = JSON.parse(row.tool_responses);
+      } catch {
+        // Keep as string if parsing fails
+      }
+    }
+
+    return row;
+  }
+
+  getTraceCount(userId: number | null = null) {
+    let query = `SELECT COUNT(*) as count FROM usage_logs`;
+    const params: any[] = [];
+
+    if (userId !== null) {
+      query += ` WHERE user_id = ?`;
+      params.push(userId);
+    }
+
+    const row = this.db.query(query).get(...params) as any;
+    return row?.count || 0;
+  }
+
+  clearAllTraces() {
+    this.db.query("DELETE FROM usage_logs").run();
+    return true;
+  }
+
+  deleteTraces(traceIds: string[]) {
+    if (!traceIds || traceIds.length === 0) return 0;
+
+    // Build query with placeholders for trace_id OR id matching
+    const conditions = traceIds.map(() => "(trace_id = ? OR id = ?)").join(" OR ");
+    const query = `DELETE FROM usage_logs WHERE ${conditions}`;
+
+    // Flatten the array: each traceId appears twice for the OR condition
+    const params = traceIds.flatMap((id) => [id, id]);
+
+    const result = this.db.query(query).run(...params);
+    return result.changes;
   }
 }

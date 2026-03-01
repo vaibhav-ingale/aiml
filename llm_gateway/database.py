@@ -293,19 +293,34 @@ class Database:
         } for row in rows]
     
     # Usage Logging
-    def log_usage(self, api_key_id: int, user_id: int, model_name: str, 
+    def log_usage(self, api_key_id: int, user_id: int, model_name: str,
                   input_tokens: int, output_tokens: int, response_time: float,
-                  cost: float, endpoint: str, status: str, error_message: str = None):
+                  cost: float, endpoint: str, status: str, error_message: str = None,
+                  trace_id: str = None, session_id: str = None,
+                  request_payload: str = None, response_payload: str = None,
+                  system_message: str = None, user_message: str = None,
+                  assistant_message: str = None, assistant_tool_calls: str = None,
+                  tool_responses: str = None, stream_setting: str = None,
+                  temperature: float = None, tool_call_type: str = None,
+                  tool_name: str = None, org_id: int = None, request_time: str = None):
         conn = self.get_connection()
         cursor = conn.cursor()
         total_tokens = input_tokens + output_tokens
         cursor.execute("""
-            INSERT INTO usage_logs 
-            (api_key_id, user_id, model_name, input_tokens, output_tokens, 
-             total_tokens, response_time, cost, endpoint, status, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO usage_logs
+            (api_key_id, user_id, model_name, input_tokens, output_tokens,
+             total_tokens, response_time, cost, endpoint, status, error_message,
+             trace_id, session_id, request_payload, response_payload,
+             system_message, user_message, assistant_message, assistant_tool_calls,
+             tool_responses, stream_setting, temperature, tool_call_type,
+             tool_name, org_id, request_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (api_key_id, user_id, model_name, input_tokens, output_tokens,
-              total_tokens, response_time, cost, endpoint, status, error_message))
+              total_tokens, response_time, cost, endpoint, status, error_message,
+              trace_id, session_id, request_payload, response_payload,
+              system_message, user_message, assistant_message, assistant_tool_calls,
+              tool_responses, stream_setting, temperature, tool_call_type,
+              tool_name, org_id, request_time))
         conn.commit()
         conn.close()
     

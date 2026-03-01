@@ -4,6 +4,8 @@ import logging
 import os
 import secrets
 import time
+import uuid
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 import httpx
@@ -149,7 +151,8 @@ async def health():
 async def proxy_all(
     request: Request,
     path: str,
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
 ):
     """Proxy all requests to LLM with API key authentication"""
     start_time = time.time()
@@ -206,6 +209,10 @@ async def proxy_all(
     if body:
         is_streaming = body.get("stream", False)
 
+    # Generate trace_id for this request
+    trace_id = str(uuid.uuid4())
+    request_time = datetime.now().isoformat()
+
     # Proxy the request
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
@@ -216,6 +223,7 @@ async def proxy_all(
                     input_tokens = count_tokens(prompt_text) if prompt_text else 0
                     output_text = ""
                     output_tokens = 0
+                    response_data = None
 
                     try:
                         async with httpx.AsyncClient(timeout=300.0) as stream_client:
@@ -268,6 +276,11 @@ async def proxy_all(
                             if is_error:
                                 error_message = f"Upstream status {response.status_code}"
 
+                            # Extract messages from request
+                            messages = body.get("messages", []) if body else []
+                            system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                            user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
                             db.log_usage(
                                 api_key_id=key_info["id"],
                                 user_id=key_info["user_id"],
@@ -278,7 +291,17 @@ async def proxy_all(
                                 cost=cost,
                                 endpoint=f"/{path}",
                                 status="error" if is_error else "success",
-                                error_message=error_message
+                                error_message=error_message,
+                                trace_id=trace_id,
+                                session_id=x_session_id,
+                                request_payload=json.dumps(body) if body else None,
+                                response_payload=json.dumps({"content": output_text}) if output_text else None,
+                                system_message=system_msg,
+                                user_message=user_msg,
+                                assistant_message=output_text if output_text else None,
+                                stream_setting="true" if is_streaming else "false",
+                                temperature=body.get("temperature") if body else None,
+                                request_time=request_time
                             )
 
                             if not is_error:
@@ -287,6 +310,12 @@ async def proxy_all(
                         # Log error
                         if model_name:
                             response_time = time.time() - start_time
+
+                            # Extract messages from request
+                            messages = body.get("messages", []) if body else []
+                            system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                            user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
                             db.log_usage(
                                 api_key_id=key_info["id"],
                                 user_id=key_info["user_id"],
@@ -297,7 +326,15 @@ async def proxy_all(
                                 cost=0.0,
                                 endpoint=f"/{path}",
                                 status="error",
-                                error_message=str(e)
+                                error_message=str(e),
+                                trace_id=trace_id,
+                                session_id=x_session_id,
+                                request_payload=json.dumps(body) if body else None,
+                                system_message=system_msg,
+                                user_message=user_msg,
+                                stream_setting="true" if is_streaming else "false",
+                                temperature=body.get("temperature") if body else None,
+                                request_time=request_time
                             )
                         raise
 
@@ -335,12 +372,19 @@ async def proxy_all(
                 # Try to extract token counts from response
                 input_tokens = 0
                 output_tokens = 0
+                response_data = None
+                assistant_msg = None
                 try:
                     response_data = response.json()
                     if "usage" in response_data:
                         usage = response_data["usage"]
                         input_tokens = usage.get("prompt_tokens", 0)
                         output_tokens = usage.get("completion_tokens", 0)
+                    # Extract assistant message
+                    if "choices" in response_data and response_data["choices"]:
+                        choice = response_data["choices"][0]
+                        if "message" in choice:
+                            assistant_msg = choice["message"].get("content")
                 except:
                     pass
                 total_tokens = input_tokens + output_tokens
@@ -363,6 +407,11 @@ async def proxy_all(
                         except Exception:
                             error_message = f"Upstream status {response.status_code}"
 
+                    # Extract messages from request
+                    messages = body.get("messages", []) if body else []
+                    system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                    user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
                     db.log_usage(
                         api_key_id=key_info["id"],
                         user_id=key_info["user_id"],
@@ -373,7 +422,17 @@ async def proxy_all(
                         cost=cost,
                         endpoint=f"/{path}",
                         status="error" if is_error else "success",
-                        error_message=error_message
+                        error_message=error_message,
+                        trace_id=trace_id,
+                        session_id=x_session_id,
+                        request_payload=json.dumps(body) if body else None,
+                        response_payload=json.dumps(response_data) if response_data else None,
+                        system_message=system_msg,
+                        user_message=user_msg,
+                        assistant_message=assistant_msg,
+                        stream_setting="false",
+                        temperature=body.get("temperature") if body else None,
+                        request_time=request_time
                     )
 
                     if not is_error:
@@ -405,6 +464,11 @@ async def proxy_all(
 
         # Log error
         if model_name:
+            # Extract messages from request
+            messages = body.get("messages", []) if body else []
+            system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+            user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
             db.log_usage(
                 api_key_id=key_info["id"],
                 user_id=key_info["user_id"],
@@ -415,7 +479,15 @@ async def proxy_all(
                 cost=0.0,
                 endpoint=f"/{path}",
                 status="error",
-                error_message=str(e)
+                error_message=str(e),
+                trace_id=trace_id,
+                session_id=x_session_id,
+                request_payload=json.dumps(body) if body else None,
+                system_message=system_msg,
+                user_message=user_msg,
+                stream_setting="true" if is_streaming else "false",
+                temperature=body.get("temperature") if body else None,
+                request_time=request_time
             )
 
         raise HTTPException(status_code=500, detail=f"Error calling LLM: {str(e)}")

@@ -161,6 +161,37 @@ const server = Bun.serve({
           return new Response(null, { status: 204 });
         }
 
+        if (pathname === "/api/traces" && req.method === "GET") {
+          const limit = Number(url.searchParams.get("limit") || 100);
+          const offset = Number(url.searchParams.get("offset") || 0);
+          const userId = url.searchParams.get("user_id");
+          const traces = db.getTraces(limit, offset, userId ? Number(userId) : null);
+          const total = db.getTraceCount(userId ? Number(userId) : null);
+          return jsonResponse({ traces, total, limit, offset });
+        }
+
+        if (pathname.startsWith("/api/traces/") && req.method === "GET") {
+          const traceId = pathname.split("/").filter(Boolean).pop();
+          if (!traceId) return errorResponse("Trace ID required", 400);
+          const trace = db.getTraceById(traceId);
+          if (!trace) return errorResponse("Trace not found", 404);
+          return jsonResponse(trace);
+        }
+
+        if (pathname === "/api/traces/clear" && req.method === "DELETE") {
+          db.clearAllTraces();
+          return jsonResponse({ success: true, message: "All traces cleared" });
+        }
+
+        if (pathname === "/api/traces/delete-multiple" && req.method === "DELETE") {
+          const body = await req.json();
+          if (!body.traceIds || !Array.isArray(body.traceIds)) {
+            return errorResponse("traceIds array required", 400);
+          }
+          const deletedCount = db.deleteTraces(body.traceIds);
+          return jsonResponse({ success: true, deletedCount });
+        }
+
         return errorResponse("Not found", 404);
       } catch (error) {
         return errorResponse(error instanceof Error ? error.message : "Server error", 500);
