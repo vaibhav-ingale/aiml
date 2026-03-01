@@ -83,3 +83,102 @@ export function binValues(values, bins) {
   });
   return { labels, counts };
 }
+
+// Notification System
+let notificationContainer = null;
+
+function getNotificationContainer() {
+  if (!notificationContainer) {
+    notificationContainer = document.createElement('div');
+    notificationContainer.id = 'notificationContainer';
+    notificationContainer.className = 'notification-container';
+    document.body.appendChild(notificationContainer);
+  }
+  return notificationContainer;
+}
+
+export function showNotification(message, type = 'success', duration = 4000) {
+  const container = getNotificationContainer();
+
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type} notification-enter`;
+
+  const icon = type === 'success' ? 'fa-circle-check' :
+               type === 'error' ? 'fa-circle-xmark' :
+               type === 'warning' ? 'fa-triangle-exclamation' : 'fa-circle-info';
+
+  notification.innerHTML = `
+    <i class="fa-solid ${icon}"></i>
+    <span>${message}</span>
+  `;
+
+  container.appendChild(notification);
+
+  // Trigger animation
+  requestAnimationFrame(() => {
+    notification.classList.remove('notification-enter');
+  });
+
+  // Auto remove
+  setTimeout(() => {
+    notification.classList.add('notification-exit');
+    setTimeout(() => {
+      container.removeChild(notification);
+    }, 300);
+  }, duration);
+}
+
+export function showConfirm(title, message, onConfirm, onCancel) {
+  const modal = document.createElement('div');
+  modal.className = 'modal confirm-modal';
+  modal.style.display = 'flex';
+
+  modal.innerHTML = `
+    <div class="modal-content confirm-modal-content">
+      <div class="confirm-modal-header">
+        <i class="fa-solid fa-triangle-exclamation confirm-modal-icon"></i>
+        <h2>${title}</h2>
+      </div>
+      <div class="confirm-modal-body">
+        <p>${message.split('\n').join('<br>')}</p>
+      </div>
+      <div class="confirm-modal-footer">
+        <button class="btn-secondary confirm-cancel">Cancel</button>
+        <button class="btn-danger confirm-confirm">Confirm</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const cleanup = () => {
+    document.body.removeChild(modal);
+  };
+
+  modal.querySelector('.confirm-cancel').addEventListener('click', () => {
+    cleanup();
+    if (onCancel) onCancel();
+  });
+
+  modal.querySelector('.confirm-confirm').addEventListener('click', () => {
+    cleanup();
+    onConfirm();
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      cleanup();
+      if (onCancel) onCancel();
+    }
+  });
+
+  // ESC key to close
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      cleanup();
+      if (onCancel) onCancel();
+      document.removeEventListener('keydown', handleEsc);
+    }
+  };
+  document.addEventListener('keydown', handleEsc);
+}

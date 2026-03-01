@@ -1,4 +1,4 @@
-import { api, formatNumber, formatMoney, formatDate } from "../lib.js";
+import { api, formatNumber, formatMoney, formatDate, showNotification, showConfirm } from "../lib.js";
 
 let currentPage = 0;
 let pageSize = 50;
@@ -84,7 +84,7 @@ export function renderTraces() {
         </div>
         <div class="card-actions">
           <button id="showAllTraces" class="btn-secondary" style="display: none;">
-            <i class="fa-solid fa-list"></i> Show All Traces
+            <i class="fa-solid fa-list"></i>&nbsp; Show All Traces
           </button>
           <button id="columnSettings" class="btn-secondary">
             <i class="fa-solid fa-columns"></i> Columns
@@ -161,42 +161,42 @@ export async function afterRenderTraces() {
 
   document.getElementById("deleteSelected")?.addEventListener("click", async () => {
     const count = selectedTraces.size;
-    if (
-      confirm(
-        `⚠️ WARNING: This will permanently delete ${count} selected trace${count > 1 ? 's' : ''} from the database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?`
-      )
-    ) {
-      try {
-        await api("traces/delete-multiple", {
-          method: "DELETE",
-          body: JSON.stringify({ traceIds: Array.from(selectedTraces) }),
-        });
-        selectedTraces.clear();
-        await loadTraces();
-        updateSelectionUI();
-        alert(`✓ ${count} trace${count > 1 ? 's have' : ' has'} been deleted successfully.`);
-      } catch (error) {
-        alert(`Failed to delete traces: ${error.message}`);
+    showConfirm(
+      'Delete Selected Traces',
+      `This will permanently delete ${count} selected trace${count > 1 ? 's' : ''} from the database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?`,
+      async () => {
+        try {
+          await api("traces/delete-multiple", {
+            method: "DELETE",
+            body: JSON.stringify({ traceIds: Array.from(selectedTraces) }),
+          });
+          selectedTraces.clear();
+          await loadTraces();
+          updateSelectionUI();
+          showNotification(`${count} trace${count > 1 ? 's have' : ' has'} been deleted successfully`, 'success');
+        } catch (error) {
+          showNotification(`Failed to delete traces: ${error.message}`, 'error');
+        }
       }
-    }
+    );
   });
 
   document.getElementById("clearAllTraces")?.addEventListener("click", async () => {
-    if (
-      confirm(
-        "⚠️ WARNING: This will permanently delete ALL traces from the database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?"
-      )
-    ) {
-      try {
-        await api("traces/clear", { method: "DELETE" });
-        currentPage = 0;
-        selectedTraces.clear();
-        await loadTraces();
-        alert("✓ All traces have been cleared successfully.");
-      } catch (error) {
-        alert(`Failed to clear traces: ${error.message}`);
+    showConfirm(
+      'Clear All Traces',
+      'This will permanently delete ALL traces from the database.\n\nThis action cannot be undone!\n\nAre you sure you want to continue?',
+      async () => {
+        try {
+          await api("traces/clear", { method: "DELETE" });
+          currentPage = 0;
+          selectedTraces.clear();
+          await loadTraces();
+          showNotification('All traces have been cleared successfully', 'success');
+        } catch (error) {
+          showNotification(`Failed to clear traces: ${error.message}`, 'error');
+        }
       }
-    }
+    );
   });
 
   document.getElementById("closeModal")?.addEventListener("click", closeModal);
@@ -783,7 +783,7 @@ async function showTraceDetails(traceId) {
     document.getElementById("traceModal").style.display = "flex";
   } catch (error) {
     console.error("Failed to load trace details:", error);
-    alert(`Failed to load trace details: ${error.message}`);
+    showNotification(`Failed to load trace details: ${error.message}`, 'error');
   }
 }
 
