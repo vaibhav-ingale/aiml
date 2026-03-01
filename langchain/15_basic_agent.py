@@ -1,10 +1,10 @@
 import calendar
 import time as time_module
+
 # Get current context information for the prompt
 from datetime import date, datetime, timedelta
 
 from langchain_core.tools import tool
-
 from mlutils import print_model_info
 from model_switcher import get_model
 
@@ -140,6 +140,7 @@ def manipulate_date(
 
     return date(year, month, day).isoformat()
 
+
 # Separate tools that the agent can chain automatically for finding the time in a city
 @tool
 def identify_timezone(city: str) -> str:
@@ -149,7 +150,6 @@ def identify_timezone(city: str) -> str:
 
     # Static mapping for common cities - much faster than LLM
     CITY_TIMEZONE_MAP = {
-
         # ======================
         # United States
         # ======================
@@ -163,7 +163,6 @@ def identify_timezone(city: str) -> str:
         "atlanta": "America/New_York",
         "detroit": "America/New_York",
         "tampa": "America/New_York",
-
         "chicago": "America/Chicago",
         "houston": "America/Chicago",
         "dallas": "America/Chicago",
@@ -172,12 +171,10 @@ def identify_timezone(city: str) -> str:
         "minneapolis": "America/Chicago",
         "st louis": "America/Chicago",
         "nashville": "America/Chicago",
-
         "denver": "America/Denver",
         "boulder": "America/Denver",
         "salt lake city": "America/Denver",
         "albuquerque": "America/Denver",
-
         "los angeles": "America/Los_Angeles",
         "la": "America/Los_Angeles",
         "san francisco": "America/Los_Angeles",
@@ -189,12 +186,9 @@ def identify_timezone(city: str) -> str:
         "seattle": "America/Los_Angeles",
         "portland": "America/Los_Angeles",
         "san diego": "America/Los_Angeles",
-
         "phoenix": "America/Phoenix",  # no DST
         "scottsdale": "America/Phoenix",
-
         "las vegas": "America/Los_Angeles",
-
         # ======================
         # Canada
         # ======================
@@ -206,7 +200,6 @@ def identify_timezone(city: str) -> str:
         "edmonton": "America/Edmonton",
         "winnipeg": "America/Winnipeg",
         "halifax": "America/Halifax",
-
         # ======================
         # United Kingdom
         # ======================
@@ -216,51 +209,38 @@ def identify_timezone(city: str) -> str:
         "leeds": "Europe/London",
         "edinburgh": "Europe/London",
         "glasgow": "Europe/London",
-
         # ======================
         # Europe
         # ======================
         "paris": "Europe/Paris",
         "marseille": "Europe/Paris",
         "lyon": "Europe/Paris",
-
         "berlin": "Europe/Berlin",
         "munich": "Europe/Berlin",
         "hamburg": "Europe/Berlin",
         "frankfurt": "Europe/Berlin",
-
         "amsterdam": "Europe/Amsterdam",
         "brussels": "Europe/Brussels",
-
         "rome": "Europe/Rome",
         "milan": "Europe/Rome",
         "naples": "Europe/Rome",
-
         "madrid": "Europe/Madrid",
         "barcelona": "Europe/Madrid",
         "valencia": "Europe/Madrid",
-
         "lisbon": "Europe/Lisbon",
-
         "zurich": "Europe/Zurich",
         "geneva": "Europe/Zurich",
-
         "vienna": "Europe/Vienna",
         "prague": "Europe/Prague",
         "warsaw": "Europe/Warsaw",
         "budapest": "Europe/Budapest",
-
         "stockholm": "Europe/Stockholm",
         "oslo": "Europe/Oslo",
         "copenhagen": "Europe/Copenhagen",
         "helsinki": "Europe/Helsinki",
-
         "athens": "Europe/Athens",
-
         "istanbul": "Europe/Istanbul",
-
         "moscow": "Europe/Moscow",
-
         # ======================
         # India
         # ======================
@@ -279,43 +259,29 @@ def identify_timezone(city: str) -> str:
         "chandigarh": "Asia/Kolkata",
         "kochi": "Asia/Kolkata",
         "trivandrum": "Asia/Kolkata",
-
         # ======================
         # Asia
         # ======================
         "tokyo": "Asia/Tokyo",
         "osaka": "Asia/Tokyo",
         "kyoto": "Asia/Tokyo",
-
         "seoul": "Asia/Seoul",
-
         "beijing": "Asia/Shanghai",
         "shanghai": "Asia/Shanghai",
         "shenzhen": "Asia/Shanghai",
         "guangzhou": "Asia/Shanghai",
-
         "hong kong": "Asia/Hong_Kong",
-
         "taipei": "Asia/Taipei",
-
         "singapore": "Asia/Singapore",
-
         "bangkok": "Asia/Bangkok",
-
         "kuala lumpur": "Asia/Kuala_Lumpur",
-
         "jakarta": "Asia/Jakarta",
-
         "manila": "Asia/Manila",
-
         "dubai": "Asia/Dubai",
         "abu dhabi": "Asia/Dubai",
-
         "riyadh": "Asia/Riyadh",
         "jeddah": "Asia/Riyadh",
-
         "tel aviv": "Asia/Jerusalem",
-
         # ======================
         # Africa
         # ======================
@@ -325,21 +291,15 @@ def identify_timezone(city: str) -> str:
         "johannesburg": "Africa/Johannesburg",
         "cape town": "Africa/Johannesburg",
         "accra": "Africa/Accra",
-
         # ======================
         # South America
         # ======================
         "sao paulo": "America/Sao_Paulo",
         "rio de janeiro": "America/Sao_Paulo",
-
         "buenos aires": "America/Argentina/Buenos_Aires",
-
         "santiago": "America/Santiago",
-
         "bogota": "America/Bogota",
-
         "lima": "America/Lima",
-
         # ======================
         # Australia & NZ
         # ======================
@@ -348,9 +308,8 @@ def identify_timezone(city: str) -> str:
         "brisbane": "Australia/Brisbane",
         "perth": "Australia/Perth",
         "adelaide": "Australia/Adelaide",
-
         "auckland": "Pacific/Auckland",
-        "wellington": "Pacific/Auckland"
+        "wellington": "Pacific/Auckland",
     }
 
     city_lower = city.lower().strip()
@@ -364,11 +323,16 @@ def identify_timezone(city: str) -> str:
         from langchain_core.output_parsers import StrOutputParser
         from langchain_core.prompts import ChatPromptTemplate
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a geography expert. Return ONLY the IANA timezone identifier. "
-                      "Examples: 'America/New_York', 'Asia/Tokyo', 'Europe/London'. No explanation."),
-            ("human", "IANA timezone for {city}?"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a geography expert. Return ONLY the IANA timezone identifier. "
+                    "Examples: 'America/New_York', 'Asia/Tokyo', 'Europe/London'. No explanation.",
+                ),
+                ("human", "IANA timezone for {city}?"),
+            ]
+        )
 
         # Reuse global model (don't create new one or print info)
         llm = get_model(temperature=0)
@@ -710,8 +674,8 @@ tools = [
     get_current_time,
     get_current_date,
     manipulate_date,
-    identify_timezone, 
-    calculate_time_in_timezone, 
+    identify_timezone,
+    calculate_time_in_timezone,
     search,
     get_local_timezone,
     wikipedia_search,
@@ -722,13 +686,12 @@ tools = [
 ]
 
 
-
 current_datetime = datetime.now()
 current_date = current_datetime.strftime("%Y-%m-%d")
 current_time = current_datetime.strftime("%H:%M:%S")
 current_day = current_datetime.strftime("%A")
 current_timezone = time_module.tzname[time_module.localtime().tm_isdst]
-hostname = "San Jose, CA" 
+hostname = "San Jose, CA"
 
 # Create system prompt for the agent with chain-of-thought reasoning and context
 system_prompt = f"""You are a helpful assistant that thinks step-by-step before answering questions.
@@ -794,10 +757,15 @@ Before using tools, think through:
 - Keep final answers clear and concise, If possible provide answer in one line do not include emojis or other decorations
 ** Do not explain your reasoning in the final answer. **
 """
+import uuid
+
+SESSION_ID = f"15basic-agent-{str(uuid.uuid4())[-4:]}"
 
 # Get model with settings optimized for reasoning
 # Note: For best results, use reasoning models like deepseek-r1, qwen3, or gpt-4 in model_switcher.py
-model = get_model(temperature=0.1, max_tokens=5000)  # Increased tokens for chain-of-thought reasoning
+# model = get_model(temperature=0.1, max_tokens=5000)  # Increased tokens for chain-of-thought reasoning
+model = get_model(temperature=0.1, max_tokens=5000, session_id=SESSION_ID)
+
 print_model_info(model)
 
 if model is None:
@@ -811,21 +779,17 @@ if model is None:
 model_with_tools = model.bind_tools(tools)
 
 
-def run_query(query: str, verbose: bool = False):
+def run_query(query: str, verbose: bool = True):
     """Run a query and show the tool usage and output with full message logging."""
     print(f"\n{'?' * 80}")
     print(f"Query: {query}")
     print(f"{'?' * 80}")
 
     try:
-        from langchain_core.messages import (HumanMessage, SystemMessage,
-                                             ToolMessage)
+        from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 
         # Build message history with system prompt
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=query)
-        ]
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=query)]
 
         if verbose:
             print(f"\nSystem Message:")
@@ -874,23 +838,11 @@ def run_query(query: str, verbose: bool = False):
                         print(f"  Result: {tool_result}")
 
                         # Add tool message
-                        messages.append(
-                            ToolMessage(
-                                content=str(tool_result),
-                                tool_call_id=tool_id,
-                                name=tool_name
-                            )
-                        )
+                        messages.append(ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name))
                     except Exception as e:
                         error_msg = f"Error executing tool: {e}"
                         print(f"  Error: {error_msg}")
-                        messages.append(
-                            ToolMessage(
-                                content=error_msg,
-                                tool_call_id=tool_id,
-                                name=tool_name
-                            )
-                        )
+                        messages.append(ToolMessage(content=error_msg, tool_call_id=tool_id, name=tool_name))
                 else:
                     print(f"  Error: Tool '{tool_name}' not found")
 
@@ -912,50 +864,51 @@ def run_query(query: str, verbose: bool = False):
     except Exception as e:
         print(f"\nError: {e}")
         import traceback
+
         traceback.print_exc()
 
 
 # Test the tools
-run_query("search who is albert einstein?")
+# run_query("search who is albert einstein?")
 
-run_query("what is 2 + 4")
-run_query("what is 2 * 4")
-run_query("what is 10 / 2")
-run_query("what is 8 - 3?")
+# run_query("what is 2 + 4")
+# run_query("what is 2 * 4")
+# run_query("what is 10 / 2")
+# run_query("what is 8 - 3?")
 
-run_query("what is the current weather in London?")
-run_query("what is the current weather in Mumbai?")
-run_query("what is the current weather in San Jose, California?")
-run_query("what is the current date and time?")
+# run_query("what is the current weather in London?")
+# run_query("what is the current weather in Mumbai?")
+# run_query("what is the current weather in San Jose, California?")
+# run_query("what is the current date and time?")
 
 run_query("what is current timezone?")
-run_query("what is current time in New York?")
-run_query("what is the current time in Tokyo?")
-run_query("what is the current time in Mumbai?")
-run_query("what is the current time in Dubai?")
-run_query("what is the current time in Chennai?")
-run_query("what is the current time in Pune?")
-run_query("what is the current time in Satara?")
-run_query("what is the current time in Kolhapur?")
+# run_query("what is current time in New York?")
+# run_query("what is the current time in Tokyo?")
+# run_query("what is the current time in Mumbai?")
+# run_query("what is the current time in Dubai?")
+# run_query("what is the current time in Chennai?")
+# run_query("what is the current time in Pune?")
+# run_query("what is the current time in Satara?")
+# run_query("what is the current time in Kolhapur?")
 
-run_query("wikipedia search on Golden Gate Bridge")
-run_query("how much 6!")
-run_query("what is the date after 7 days?")
-run_query("what is the date on next sunday?")
-run_query("how many weeks until my birthday on 13 june")
-run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
+# run_query("wikipedia search on Golden Gate Bridge")
+# run_query("how much 6!")
+# run_query("what is the date after 7 days?")
+# run_query("what is the date on next sunday?")
+# run_query("how many weeks until my birthday on 13 june")
+# run_query("my dob is 13 jun 1986 what is my age as of today in month,days,hours?")
 
-run_query("what is the stock price of AAPL?")
-run_query("get me stock info for TSLA")
-run_query("get me stock info for MCX.NS")
-run_query("get me stock info for RELIANCE.NS")
-run_query("what is the stock price of TCS.NS?")
-run_query("show me INFY.NS stock details")
+# run_query("what is the stock price of AAPL?")
+# run_query("get me stock info for TSLA")
+# run_query("get me stock info for MCX.NS")
+# run_query("get me stock info for RELIANCE.NS")
+# run_query("what is the stock price of TCS.NS?")
+# run_query("show me INFY.NS stock details")
 
-# US stocks
-run_query("show me financial statements for AAPL")
-run_query("what is TSLA revenue and profit?")
+# # US stocks
+# run_query("show me financial statements for AAPL")
+# run_query("what is TSLA revenue and profit?")
 
-# Indian stocks
-run_query("get financial data for RELIANCE")
-run_query("what is TCS revenue and profit?")
+# # Indian stocks
+# run_query("get financial data for RELIANCE")
+# run_query("what is TCS revenue and profit?")

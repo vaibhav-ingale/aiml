@@ -165,8 +165,9 @@ const server = Bun.serve({
           const limit = Number(url.searchParams.get("limit") || 100);
           const offset = Number(url.searchParams.get("offset") || 0);
           const userId = url.searchParams.get("user_id");
-          const traces = db.getTraces(limit, offset, userId ? Number(userId) : null);
-          const total = db.getTraceCount(userId ? Number(userId) : null);
+          const sessionId = url.searchParams.get("session_id");
+          const traces = db.getTraces(limit, offset, userId ? Number(userId) : null, sessionId);
+          const total = db.getTraceCount(userId ? Number(userId) : null, sessionId);
           return jsonResponse({ traces, total, limit, offset });
         }
 

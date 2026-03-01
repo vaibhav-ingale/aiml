@@ -227,11 +227,12 @@ export class Database {
     };
   }
 
-  getTraces(limit = 100, offset = 0, userId: number | null = null) {
+  getTraces(limit = 100, offset = 0, userId: number | null = null, sessionId: string | null = null) {
     let query = `
       SELECT
         id,
         trace_id,
+        session_id,
         created_at as timestamp,
         model_name,
         input_tokens,
@@ -240,14 +241,27 @@ export class Database {
         response_time,
         cost,
         status,
-        user_id
+        user_id,
+        user_message,
+        assistant_message
       FROM usage_logs
     `;
 
     const params: any[] = [];
+    const conditions: string[] = [];
+
     if (userId !== null) {
-      query += ` WHERE user_id = ?`;
+      conditions.push('user_id = ?');
       params.push(userId);
+    }
+
+    if (sessionId !== null && sessionId !== '') {
+      conditions.push('session_id = ?');
+      params.push(sessionId);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
@@ -372,13 +386,23 @@ export class Database {
     return row;
   }
 
-  getTraceCount(userId: number | null = null) {
+  getTraceCount(userId: number | null = null, sessionId: string | null = null) {
     let query = `SELECT COUNT(*) as count FROM usage_logs`;
     const params: any[] = [];
+    const conditions: string[] = [];
 
     if (userId !== null) {
-      query += ` WHERE user_id = ?`;
+      conditions.push('user_id = ?');
       params.push(userId);
+    }
+
+    if (sessionId !== null && sessionId !== '') {
+      conditions.push('session_id = ?');
+      params.push(sessionId);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     const row = this.db.query(query).get(...params) as any;

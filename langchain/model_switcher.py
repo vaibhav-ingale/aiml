@@ -19,7 +19,7 @@ PROVIDER = "openai"
 OPENAI_MODEL = "openai/gpt-oss-20b"
 # OPENAI_MODEL = "mistralai/ministral-3-3b"
 OPENAI_BASE_URL = "http://10.0.0.100:8008/v1"
-OPENAI_API_KEY = "ollama-eli4MBzJlqF1THHEB_I-E_G7vxbR2jMC"
+OPENAI_API_KEY = "llmgw-ANCUyGuAKn3-43J4uleD0bRDTvTGRM7b"
 
 # Ollama settings (for PROVIDER = "ollama") as we are using ChatOllama class
 OLLAMA_MODEL = "gpt-oss:20b"
@@ -33,9 +33,12 @@ MAX_TOKENS = 5000
 # ============================================================
 # MODEL GETTER FUNCTIONS
 # ============================================================
+import uuid
+
+SESSION_ID = f"agent-{str(uuid.uuid4())[-8:]}"
 
 
-def get_model(provider=None, model_name=None, base_url=None, api_key=None, temperature=None, max_tokens=None, **kwargs):
+def get_model(provider=None, model_name=None, base_url=None, api_key=None, temperature=None, max_tokens=None, session_id=None, **kwargs):
     """
     Get configured chat model based on provider.
 
@@ -46,6 +49,7 @@ def get_model(provider=None, model_name=None, base_url=None, api_key=None, tempe
         api_key: Override default API key (OpenAI only)
         temperature: Override default TEMPERATURE
         max_tokens: Override default MAX_TOKENS
+        session_id: Session ID for tracking related requests (OpenAI provider only)
         **kwargs: Additional parameters for the model
 
     Returns:
@@ -54,22 +58,30 @@ def get_model(provider=None, model_name=None, base_url=None, api_key=None, tempe
     selected_provider = provider or PROVIDER
 
     if selected_provider == "openai":
+        # Add session_id to default_headers if provided
+        default_headers = kwargs.pop("default_headers", {})
+        if session_id or SESSION_ID:
+            default_headers["X-Session-ID"] = session_id or SESSION_ID
+
         return ChatOpenAI(
             model=model_name or OPENAI_MODEL,
             base_url=base_url or OPENAI_BASE_URL,
             api_key=api_key or OPENAI_API_KEY,
             temperature=temperature if temperature is not None else TEMPERATURE,
             max_tokens=max_tokens or MAX_TOKENS,
-            **kwargs
+            default_headers=default_headers if default_headers else None,
+            **kwargs,
         )
     elif selected_provider == "ollama":
+        # Note: Ollama provider doesn't support custom headers for session tracking
+        # Use OpenAI provider with Ollama-compatible gateway for session support
         return ChatOllama(
             model=model_name or OLLAMA_MODEL,
             base_url=base_url or OLLAMA_BASE_URL,
             # api_key=api_key or OLLAMA_API_KEY,
             temperature=temperature if temperature is not None else TEMPERATURE,
             num_predict=max_tokens or MAX_TOKENS,
-            **kwargs
+            **kwargs,
         )
     else:
         raise ValueError(f"Unknown provider: {selected_provider}. Use 'openai' or 'ollama'")
