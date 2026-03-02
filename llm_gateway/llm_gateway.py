@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 DEBUG_TOKEN_TRACKING = os.getenv("DEBUG_TOKEN_TRACKING", "False").lower() == "true"
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://10.0.0.100:1234")  # Default LM Studio URL, port 11434 for Ollama
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://10.0.0.100:1234")  # Fallback for backward compatibility
 GATEWAY_HOST = os.getenv("GATEWAY_HOST", "0.0.0.0")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8008"))
 
@@ -134,6 +134,23 @@ def verify_api_key(api_key: str) -> Optional[Dict]:
 
     return key_info
 
+def get_provider_for_model(model_name: str) -> Optional[Dict]:
+    """
+    Get provider configuration for a given model.
+    Returns provider details with base_url and api_key for routing.
+    """
+    provider = db.get_provider_by_model(model_name)
+    if not provider:
+        logger.warning(f"No provider found for model: {model_name}")
+        return None
+
+    if not provider.get("is_active"):
+        logger.warning(f"Provider {provider['provider_name']} is inactive for model: {model_name}")
+        return None
+
+    logger.info(f"Routing model '{model_name}' to provider: {provider['provider_name']} at {provider['base_url']}")
+    return provider
+
 def check_model_access(key_info: Dict, model_name: str) -> bool:
     """Check if API key has access to the requested model"""
     if not model_name:
@@ -191,10 +208,10 @@ async def proxy_all(
     authorization: Optional[str] = Header(None),
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID")
 ):
-    """Proxy all requests to LLM with API key authentication"""
+    """Proxy all requests to LLM with API key authentication and dynamic provider routing"""
     start_time = time.time()
 
-    # Skip auth for health/info endpoints
+    # Skip auth for health/info endpoints (use fallback URL for backward compatibility)
     if path in ["", "health", "version"]:
         async with httpx.AsyncClient() as client:
             response = await client.request(
@@ -231,6 +248,11 @@ async def proxy_all(
             body = None
 
     is_models_endpoint = path.endswith("models")
+
+    # Determine target URL (provider-based or fallback)
+    target_base_url = LLM_BASE_URL  # Default fallback
+    provider_api_key = None
+
     if is_models_endpoint:
         if "model" in request.query_params or (body and "model" in body):
             raise HTTPException(status_code=400, detail="Model parameter is not allowed for /models.")
@@ -240,6 +262,16 @@ async def proxy_all(
             raise HTTPException(status_code=400, detail="Model is required.")
         if not check_model_access(key_info, model_name):
             raise HTTPException(status_code=403, detail="Model is not allowed to use.")
+
+        # Get provider for this model (dynamic routing)
+        provider = get_provider_for_model(model_name)
+        if provider:
+            target_base_url = provider["base_url"]
+            provider_api_key = provider.get("api_key")
+            logger.info(f"Using provider {provider['provider_name']} at {target_base_url} for model {model_name}")
+        else:
+            # Fallback to default LLM_BASE_URL for backward compatibility
+            logger.warning(f"No provider configured for model {model_name}, using fallback URL: {target_base_url}")
 
     # Determine if this is a streaming request
     is_streaming = False
@@ -263,12 +295,18 @@ async def proxy_all(
                     response_data = None
 
                     try:
+                        # Prepare headers with provider API key if available
+                        stream_headers = {"Content-Type": "application/json"}
+                        if provider_api_key:
+                            stream_headers["Authorization"] = f"Bearer {provider_api_key}"
+
                         async with httpx.AsyncClient(timeout=300.0) as stream_client:
                             async with stream_client.stream(
                                 method=request.method,
-                                url=f"{LLM_BASE_URL}/{path}",
+                                url=f"{target_base_url}/{path}",
                                 json=body,
                                 params=request.query_params,
+                                headers=stream_headers,
                             ) as response:
                                 async for chunk in response.aiter_bytes():
                                     # Try to extract token counts from chunk
@@ -387,26 +425,32 @@ async def proxy_all(
                 )
             else:
                 # Handle non-streaming response
+                # Prepare headers with provider API key if available
+                request_headers = {"Content-Type": "application/json"}
+                if provider_api_key:
+                    request_headers["Authorization"] = f"Bearer {provider_api_key}"
+
                 if body is not None:
                     response = await client.request(
                         method=request.method,
-                        url=f"{LLM_BASE_URL}/{path}",
+                        url=f"{target_base_url}/{path}",
                         json=body,
                         params=request.query_params,
+                        headers=request_headers,
                     )
                 elif raw_body:
                     response = await client.request(
                         method=request.method,
-                        url=f"{LLM_BASE_URL}/{path}",
+                        url=f"{target_base_url}/{path}",
                         content=raw_body,
-                        headers=dict(request.headers),
+                        headers={**dict(request.headers), **request_headers},
                         params=request.query_params,
                     )
                 else:
                     response = await client.request(
                         method=request.method,
-                        url=f"{LLM_BASE_URL}/{path}",
-                        headers=dict(request.headers),
+                        url=f"{target_base_url}/{path}",
+                        headers={**dict(request.headers), **request_headers},
                         params=request.query_params,
                     )
 

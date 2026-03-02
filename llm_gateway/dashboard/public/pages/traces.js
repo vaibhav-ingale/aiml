@@ -687,6 +687,14 @@ async function showTraceDetails(traceId) {
               <label>Model:</label>
               <span>${trace.model_name || "-"}</span>
             </div>
+            ${trace.provider_name ? `
+            <div class="trace-field">
+              <label>Provider:</label>
+              <span class="status-badge" style="background: var(--accent-soft); color: var(--accent);">
+                <i class="fa-solid fa-server"></i> ${trace.provider_name}
+              </span>
+            </div>
+            ` : ''}
             <div class="trace-field">
               <label>Execution Time:</label>
               <span>${trace.response_time ? (trace.response_time * 1000).toFixed(2) + " ms" : "-"}</span>
@@ -741,10 +749,10 @@ async function showTraceDetails(traceId) {
         ${trace.error_message ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Error
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <div class="trace-code error-message">${escapeHtml(trace.error_message)}</div>
           </div>
         </div>
@@ -753,10 +761,10 @@ async function showTraceDetails(traceId) {
         ${trace.system_message ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             System Message
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <div class="trace-code">${escapeHtml(trace.system_message.trim())}</div>
           </div>
         </div>
@@ -765,10 +773,10 @@ async function showTraceDetails(traceId) {
         ${trace.user_message ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             User Message
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <div class="trace-code">${escapeHtml(trace.user_message.trim())}</div>
           </div>
         </div>
@@ -777,10 +785,10 @@ async function showTraceDetails(traceId) {
         ${trace.assistant_message ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Assistant Message
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <div class="trace-code">${escapeHtml(trace.assistant_message.trim())}</div>
           </div>
         </div>
@@ -789,10 +797,10 @@ async function showTraceDetails(traceId) {
         ${trace.request_payload ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Request Payload
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <pre class="trace-code"><code>${escapeHtml(JSON.stringify(trace.request_payload, null, 2))}</code></pre>
           </div>
         </div>
@@ -801,10 +809,10 @@ async function showTraceDetails(traceId) {
         ${trace.assistant_tool_calls ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Tool Calls
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             ${renderToolCalls(trace.assistant_tool_calls)}
           </div>
         </div>
@@ -813,10 +821,10 @@ async function showTraceDetails(traceId) {
         ${trace.tool_responses ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Tool Responses
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <pre class="trace-code"><code>${escapeHtml(JSON.stringify(trace.tool_responses, null, 2))}</code></pre>
           </div>
         </div>
@@ -825,10 +833,10 @@ async function showTraceDetails(traceId) {
         ${trace.response_payload ? `
         <div class="trace-section collapsible-section">
           <h3 class="collapsible-header" onclick="toggleSection(this)">
-            <i class="fa-solid fa-chevron-down"></i>
+            <i class="fa-solid fa-chevron-right"></i>
             Response Payload
           </h3>
-          <div class="collapsible-content">
+          <div class="collapsible-content" style="display: none;">
             <pre class="trace-code"><code>${escapeHtml(JSON.stringify(trace.response_payload, null, 2))}</code></pre>
           </div>
         </div>

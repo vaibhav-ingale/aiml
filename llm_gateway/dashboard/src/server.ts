@@ -198,6 +198,195 @@ const server = Bun.serve({
           return jsonResponse(trace);
         }
 
+        // LLM Providers endpoints
+        if (pathname === "/api/providers" && req.method === "GET") {
+          return jsonResponse(db.getAllProviders());
+        }
+
+        if (pathname === "/api/providers" && req.method === "POST") {
+          const body = await req.json();
+          if (!body.provider_name) return errorResponse("Provider name required", 400);
+          if (!body.base_url) return errorResponse("Base URL required", 400);
+
+          try {
+            const providerId = db.createProvider(
+              body.provider_name,
+              body.base_url,
+              body.api_key || null,
+              body.allowed_models || []
+            );
+            return jsonResponse({ id: providerId }, 201);
+          } catch (error) {
+            return errorResponse("Provider name already exists", 409);
+          }
+        }
+
+        if (pathname.startsWith("/api/providers/") && pathname.endsWith("/health") && req.method === "GET") {
+          const providerId = parseId(pathname.replace("/health", ""));
+          const provider = db.getProvider(providerId);
+          if (!provider) return errorResponse("Provider not found", 404);
+
+          try {
+            // Test connection to provider
+            const healthUrl = `${provider.base_url}/v1/models`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const healthResponse = await fetch(healthUrl, {
+              method: "GET",
+              signal: controller.signal,
+              headers: provider.api_key
+                ? { Authorization: `Bearer ${provider.api_key}` }
+                : {},
+            });
+
+            clearTimeout(timeoutId);
+
+            const status = healthResponse.ok ? "online" : "offline";
+            db.updateProviderHealth(providerId, status);
+
+            return jsonResponse({
+              status,
+              provider_id: providerId,
+              provider_name: provider.provider_name,
+            });
+          } catch (error) {
+            db.updateProviderHealth(providerId, "offline");
+            return jsonResponse({
+              status: "offline",
+              provider_id: providerId,
+              provider_name: provider.provider_name,
+              error: error instanceof Error ? error.message : "Connection failed",
+            });
+          }
+        }
+
+        if (pathname.startsWith("/api/providers/") && pathname.endsWith("/models") && req.method === "GET") {
+          const providerId = parseId(pathname.replace("/models", ""));
+          const provider = db.getProvider(providerId);
+          if (!provider) return errorResponse("Provider not found", 404);
+
+          try {
+            // Fetch models from provider
+            const modelsUrl = `${provider.base_url}/v1/models`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const modelsResponse = await fetch(modelsUrl, {
+              method: "GET",
+              signal: controller.signal,
+              headers: provider.api_key
+                ? { Authorization: `Bearer ${provider.api_key}` }
+                : {},
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!modelsResponse.ok) {
+              throw new Error(`HTTP ${modelsResponse.status}`);
+            }
+
+            const data = await modelsResponse.json();
+            const models = data.data || [];
+
+            return jsonResponse({
+              provider_id: providerId,
+              provider_name: provider.provider_name,
+              models: models.map((m: any) => ({
+                id: m.id,
+                object: m.object,
+                owned_by: m.owned_by,
+              })),
+            });
+          } catch (error) {
+            return errorResponse(
+              error instanceof Error ? error.message : "Failed to fetch models",
+              500
+            );
+          }
+        }
+
+        if (pathname.startsWith("/api/providers/") && pathname.endsWith("/refresh-models") && req.method === "POST") {
+          const providerId = parseId(pathname.replace("/refresh-models", ""));
+          const provider = db.getProvider(providerId);
+          if (!provider) return errorResponse("Provider not found", 404);
+
+          try {
+            // Fetch models from provider
+            const modelsUrl = `${provider.base_url}/v1/models`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+            const modelsResponse = await fetch(modelsUrl, {
+              method: "GET",
+              signal: controller.signal,
+              headers: provider.api_key
+                ? { Authorization: `Bearer ${provider.api_key}` }
+                : {},
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!modelsResponse.ok) {
+              throw new Error(`HTTP ${modelsResponse.status}`);
+            }
+
+            const data = await modelsResponse.json();
+            const models = data.data || [];
+
+            // Save models to database (only new ones)
+            let addedCount = 0;
+            for (const model of models) {
+              const result = db.addModelIfNotExists(
+                model.id,
+                0.0, // Default input cost
+                0.0, // Default output cost
+                provider.provider_name
+              );
+              if (result !== null) {
+                addedCount++;
+              }
+            }
+
+            return jsonResponse({
+              success: true,
+              provider_id: providerId,
+              provider_name: provider.provider_name,
+              models_count: models.length,
+              added_count: addedCount,
+            });
+          } catch (error) {
+            return errorResponse(
+              error instanceof Error ? error.message : "Failed to refresh models",
+              500
+            );
+          }
+        }
+
+        if (pathname.startsWith("/api/providers/") && req.method === "GET") {
+          const providerId = parseId(pathname);
+          const provider = db.getProvider(providerId);
+          if (!provider) return errorResponse("Provider not found", 404);
+          return jsonResponse(provider);
+        }
+
+        if (pathname.startsWith("/api/providers/") && req.method === "PATCH") {
+          const providerId = parseId(pathname);
+          const body = await req.json();
+
+          const provider = db.getProvider(providerId);
+          if (!provider) return errorResponse("Provider not found", 404);
+
+          db.updateProvider(providerId, body);
+          return new Response(null, { status: 204 });
+        }
+
+        if (pathname.startsWith("/api/providers/") && req.method === "DELETE") {
+          const providerId = parseId(pathname);
+          db.deleteProvider(providerId);
+          return new Response(null, { status: 204 });
+        }
+
         return errorResponse("Not found", 404);
       } catch (error) {
         return errorResponse(error instanceof Error ? error.message : "Server error", 500);

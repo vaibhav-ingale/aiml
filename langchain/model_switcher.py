@@ -16,10 +16,13 @@ PROVIDER = "openai"
 
 # OpenAI-compatible settings (for PROVIDER = "openai") as we are using ChatOpenAI class
 # OPENAI_MODEL = "gpt-oss:20b"
-OPENAI_MODEL = "openai/gpt-oss-20b"
+# OPENAI_MODEL = "openai/gpt-oss-20b"
+OPENAI_MODEL = "ggml-org/gpt-oss-20b-GGUF"
+# OPENAI_MODEL = "granite4:latest"
+# OPENAI_MODEL = "ministral-3:8b-instruct-2512-q4_K_M"
 # OPENAI_MODEL = "mistralai/ministral-3-3b"
 OPENAI_BASE_URL = "http://10.0.0.100:8008/v1"
-OPENAI_API_KEY = "llmgw-ANCUyGuAKn3-43J4uleD0bRDTvTGRM7b"
+OPENAI_API_KEY = "llmgw-JiCFEeqoGLkuyzF1GAKHgPY4vSadsbMR"
 
 # Ollama settings (for PROVIDER = "ollama") as we are using ChatOllama class
 OLLAMA_MODEL = "gpt-oss:20b"

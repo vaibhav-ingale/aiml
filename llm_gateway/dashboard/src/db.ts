@@ -1,5 +1,12 @@
 import { Database as SQLiteDatabase } from "bun:sqlite";
 
+function maskApiKey(apiKey: string | null, visibleChars: number = 4): string {
+  if (!apiKey || apiKey.length <= visibleChars) {
+    return "****";
+  }
+  return "*".repeat(8) + apiKey.slice(-visibleChars);
+}
+
 export class Database {
   private db: SQLiteDatabase;
 
@@ -29,11 +36,25 @@ export class Database {
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS llm_providers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider_name TEXT UNIQUE NOT NULL,
+        base_url TEXT NOT NULL,
+        api_key TEXT,
+        allowed_models TEXT,
+        is_active BOOLEAN DEFAULT 1,
+        last_health_check TIMESTAMP,
+        health_status TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS models (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         model_name TEXT UNIQUE NOT NULL,
         input_cost_per_1k REAL DEFAULT 0.0,
         output_cost_per_1k REAL DEFAULT 0.0,
+        provider_name TEXT,
         is_active BOOLEAN DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -58,7 +79,18 @@ export class Database {
 
       CREATE INDEX IF NOT EXISTS idx_trace_id ON usage_logs(trace_id);
       CREATE INDEX IF NOT EXISTS idx_created_at ON usage_logs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name);
+      CREATE INDEX IF NOT EXISTS idx_providers_active ON llm_providers(is_active);
     `);
+
+    // Check if provider_name column exists in models table
+    const tableInfo = this.db.query("PRAGMA table_info(models)").all() as any[];
+    const hasProviderColumn = tableInfo.some(col => col.name === "provider_name");
+
+    if (!hasProviderColumn) {
+      console.log("Adding provider_name column to models table");
+      this.db.exec("ALTER TABLE models ADD COLUMN provider_name TEXT");
+    }
   }
 
   createUser(username: string) {
@@ -147,13 +179,40 @@ export class Database {
     stmt();
   }
 
-  addModel(modelName: string, inputCost: number, outputCost: number) {
-    const info = this.db
-      .query(
-        "INSERT OR REPLACE INTO models (model_name, input_cost_per_1k, output_cost_per_1k) VALUES (?, ?, ?)"
-      )
-      .run(modelName, inputCost, outputCost);
-    return Number(info.lastInsertRowid);
+  addModel(modelName: string, inputCost: number, outputCost: number, providerName: string | null = null) {
+    // Check if model exists
+    const existing = this.db.query("SELECT id FROM models WHERE model_name = ?").get(modelName) as any;
+
+    if (existing) {
+      // Update existing model - only update pricing, leave provider_name untouched
+      this.db.query(
+        "UPDATE models SET input_cost_per_1k = ?, output_cost_per_1k = ? WHERE model_name = ?"
+      ).run(inputCost, outputCost, modelName);
+      return existing.id;
+    } else {
+      // Insert new model
+      const info = this.db.query(
+        "INSERT INTO models (model_name, input_cost_per_1k, output_cost_per_1k, provider_name) VALUES (?, ?, ?, ?)"
+      ).run(modelName, inputCost, outputCost, providerName);
+      return Number(info.lastInsertRowid);
+    }
+  }
+
+  // Add model only if it doesn't exist (for provider refresh)
+  addModelIfNotExists(modelName: string, inputCost: number, outputCost: number, providerName: string | null = null): number | null {
+    // Check if model exists
+    const existing = this.db.query("SELECT id FROM models WHERE model_name = ?").get(modelName) as any;
+
+    if (existing) {
+      // Model exists - do nothing, return null to indicate it wasn't added
+      return null;
+    } else {
+      // Insert new model only
+      const info = this.db.query(
+        "INSERT INTO models (model_name, input_cost_per_1k, output_cost_per_1k, provider_name) VALUES (?, ?, ?, ?)"
+      ).run(modelName, inputCost, outputCost, providerName);
+      return Number(info.lastInsertRowid);
+    }
   }
 
   getAllModels() {
@@ -230,35 +289,37 @@ export class Database {
   getTraces(limit = 100, offset = 0, userId: number | null = null, sessionId: string | null = null) {
     let query = `
       SELECT
-        id,
-        trace_id,
-        session_id,
-        created_at as timestamp,
-        model_name,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        response_time,
-        cost,
-        status,
-        user_id,
-        user_message,
-        assistant_message,
-        tool_name,
-        tool_call_type
-      FROM usage_logs
+        ul.id,
+        ul.trace_id,
+        ul.session_id,
+        ul.created_at as timestamp,
+        ul.model_name,
+        ul.input_tokens,
+        ul.output_tokens,
+        ul.total_tokens,
+        ul.response_time,
+        ul.cost,
+        ul.status,
+        ul.user_id,
+        ul.user_message,
+        ul.assistant_message,
+        ul.tool_name,
+        ul.tool_call_type,
+        m.provider_name
+      FROM usage_logs ul
+      LEFT JOIN models m ON ul.model_name = m.model_name
     `;
 
     const params: any[] = [];
     const conditions: string[] = [];
 
     if (userId !== null) {
-      conditions.push('user_id = ?');
+      conditions.push('ul.user_id = ?');
       params.push(userId);
     }
 
     if (sessionId !== null && sessionId !== '') {
-      conditions.push('session_id = ?');
+      conditions.push('ul.session_id = ?');
       params.push(sessionId);
     }
 
@@ -266,7 +327,7 @@ export class Database {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY ul.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     return this.db.query(query).all(...params) as any[];
@@ -283,34 +344,36 @@ export class Database {
       row = this.db
         .query(
           `SELECT
-            id,
-            trace_id,
-            session_id,
-            created_at as timestamp,
-            model_name,
-            input_tokens,
-            output_tokens,
-            total_tokens,
-            response_time,
-            cost,
-            status,
-            error_message,
-            request_payload,
-            response_payload,
-            system_message,
-            user_message,
-            assistant_message,
-            assistant_tool_calls,
-            tool_responses,
-            stream_setting,
-            temperature,
-            tool_call_type,
-            tool_name,
-            endpoint,
-            user_id,
-            api_key_id
-          FROM usage_logs
-          WHERE trace_id = ? OR id = ?`
+            ul.id,
+            ul.trace_id,
+            ul.session_id,
+            ul.created_at as timestamp,
+            ul.model_name,
+            ul.input_tokens,
+            ul.output_tokens,
+            ul.total_tokens,
+            ul.response_time,
+            ul.cost,
+            ul.status,
+            ul.error_message,
+            ul.request_payload,
+            ul.response_payload,
+            ul.system_message,
+            ul.user_message,
+            ul.assistant_message,
+            ul.assistant_tool_calls,
+            ul.tool_responses,
+            ul.stream_setting,
+            ul.temperature,
+            ul.tool_call_type,
+            ul.tool_name,
+            ul.endpoint,
+            ul.user_id,
+            ul.api_key_id,
+            m.provider_name
+          FROM usage_logs ul
+          LEFT JOIN models m ON ul.model_name = m.model_name
+          WHERE ul.trace_id = ? OR ul.id = ?`
         )
         .get(String(traceId), numericId) as any;
     } else {
@@ -318,34 +381,36 @@ export class Database {
       row = this.db
         .query(
           `SELECT
-            id,
-            trace_id,
-            session_id,
-            created_at as timestamp,
-            model_name,
-            input_tokens,
-            output_tokens,
-            total_tokens,
-            response_time,
-            cost,
-            status,
-            error_message,
-            request_payload,
-            response_payload,
-            system_message,
-            user_message,
-            assistant_message,
-            assistant_tool_calls,
-            tool_responses,
-            stream_setting,
-            temperature,
-            tool_call_type,
-            tool_name,
-            endpoint,
-            user_id,
-            api_key_id
-          FROM usage_logs
-          WHERE trace_id = ?`
+            ul.id,
+            ul.trace_id,
+            ul.session_id,
+            ul.created_at as timestamp,
+            ul.model_name,
+            ul.input_tokens,
+            ul.output_tokens,
+            ul.total_tokens,
+            ul.response_time,
+            ul.cost,
+            ul.status,
+            ul.error_message,
+            ul.request_payload,
+            ul.response_payload,
+            ul.system_message,
+            ul.user_message,
+            ul.assistant_message,
+            ul.assistant_tool_calls,
+            ul.tool_responses,
+            ul.stream_setting,
+            ul.temperature,
+            ul.tool_call_type,
+            ul.tool_name,
+            ul.endpoint,
+            ul.user_id,
+            ul.api_key_id,
+            m.provider_name
+          FROM usage_logs ul
+          LEFT JOIN models m ON ul.model_name = m.model_name
+          WHERE ul.trace_id = ?`
         )
         .get(String(traceId)) as any;
     }
@@ -444,5 +509,138 @@ export class Database {
       trace_count: row.trace_count,
       last_activity: row.last_activity,
     }));
+  }
+
+  // LLM Provider Management
+  createProvider(providerName: string, baseUrl: string, apiKey: string | null, allowedModels: string[]) {
+    const info = this.db
+      .query(
+        `INSERT INTO llm_providers (provider_name, base_url, api_key, allowed_models, health_status)
+         VALUES (?, ?, ?, ?, 'unknown')`
+      )
+      .run(providerName, baseUrl, apiKey, JSON.stringify(allowedModels));
+    return Number(info.lastInsertRowid);
+  }
+
+  getProvider(providerId: number) {
+    const row = this.db.query("SELECT * FROM llm_providers WHERE id = ?").get(providerId) as any;
+    if (!row) return null;
+
+    return {
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+      allowed_models: row.allowed_models ? JSON.parse(row.allowed_models) : [],
+    };
+  }
+
+  getProviderByName(providerName: string) {
+    const row = this.db.query("SELECT * FROM llm_providers WHERE provider_name = ?").get(providerName) as any;
+    if (!row) return null;
+
+    return {
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+      allowed_models: row.allowed_models ? JSON.parse(row.allowed_models) : [],
+    };
+  }
+
+  getAllProviders(includeInactive: boolean = true) {
+    let query = "SELECT * FROM llm_providers";
+    if (!includeInactive) {
+      query += " WHERE is_active = 1";
+    }
+    query += " ORDER BY created_at DESC";
+
+    const rows = this.db.query(query).all() as any[];
+
+    return rows.map((row) => ({
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+      allowed_models: row.allowed_models ? JSON.parse(row.allowed_models) : [],
+    }));
+  }
+
+  updateProvider(
+    providerId: number,
+    updates: {
+      provider_name?: string;
+      base_url?: string;
+      api_key?: string;
+      allowed_models?: string[];
+      is_active?: boolean;
+    }
+  ) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.provider_name !== undefined) {
+      fields.push("provider_name = ?");
+      values.push(updates.provider_name);
+    }
+    if (updates.base_url !== undefined) {
+      fields.push("base_url = ?");
+      values.push(updates.base_url);
+    }
+    if (updates.api_key !== undefined) {
+      fields.push("api_key = ?");
+      values.push(updates.api_key);
+    }
+    if (updates.allowed_models !== undefined) {
+      fields.push("allowed_models = ?");
+      values.push(JSON.stringify(updates.allowed_models));
+    }
+    if (updates.is_active !== undefined) {
+      fields.push("is_active = ?");
+      values.push(updates.is_active ? 1 : 0);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push("updated_at = CURRENT_TIMESTAMP");
+    values.push(providerId);
+
+    const query = `UPDATE llm_providers SET ${fields.join(", ")} WHERE id = ?`;
+    this.db.query(query).run(...values);
+  }
+
+  updateProviderHealth(providerId: number, healthStatus: string) {
+    this.db
+      .query(
+        `UPDATE llm_providers
+         SET health_status = ?, last_health_check = CURRENT_TIMESTAMP
+         WHERE id = ?`
+      )
+      .run(healthStatus, providerId);
+  }
+
+  deleteProvider(providerId: number) {
+    // Get provider name
+    const provider = this.db.query("SELECT provider_name FROM llm_providers WHERE id = ?").get(providerId) as any;
+    if (!provider) return;
+
+    const stmt = this.db.transaction(() => {
+      // Set models associated with this provider to inactive
+      this.db.query("UPDATE models SET is_active = 0 WHERE provider_name = ?").run(provider.provider_name);
+      // Delete the provider
+      this.db.query("DELETE FROM llm_providers WHERE id = ?").run(providerId);
+    });
+    stmt();
+  }
+
+  getProviderByModel(modelName: string) {
+    const model = this.db
+      .query("SELECT provider_name FROM models WHERE model_name = ? AND is_active = 1")
+      .get(modelName) as any;
+
+    if (!model || !model.provider_name) return null;
+
+    return this.getProviderByName(model.provider_name);
+  }
+
+
+  getModelsByProvider(providerName: string) {
+    return this.db
+      .query("SELECT * FROM models WHERE provider_name = ? AND is_active = 1 ORDER BY model_name")
+      .all(providerName) as any[];
   }
 }

@@ -1,7 +1,11 @@
 import json
 import sqlite3
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
+from crypto_utils import encrypt_api_key, decrypt_api_key, mask_api_key
+
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -15,7 +19,7 @@ class Database:
     def init_db(self):
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
         # Users table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -24,7 +28,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # API Keys table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS api_keys (
@@ -39,19 +43,36 @@ class Database:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
-        
-        # Models table with pricing
+
+        # LLM Providers table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS llm_providers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_name TEXT UNIQUE NOT NULL,
+                base_url TEXT NOT NULL,
+                api_key TEXT,
+                allowed_models TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                last_health_check TIMESTAMP,
+                health_status TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Models table with pricing (updated to include provider_name)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS models (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 model_name TEXT UNIQUE NOT NULL,
                 input_cost_per_1k REAL DEFAULT 0.0,
                 output_cost_per_1k REAL DEFAULT 0.0,
+                provider_name TEXT,
                 is_active BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # Usage logs table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS usage_logs (
@@ -72,7 +93,18 @@ class Database:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
-        
+
+        # Check if provider_name column exists in models table, add if missing
+        cursor.execute("PRAGMA table_info(models)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'provider_name' not in columns:
+            logger.info("Adding provider_name column to models table")
+            cursor.execute("ALTER TABLE models ADD COLUMN provider_name TEXT")
+
+        # Create indexes (after ensuring columns exist)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_providers_active ON llm_providers(is_active)")
+
         conn.commit()
         conn.close()
     
@@ -248,13 +280,14 @@ class Database:
         } for row in rows]
     
     # Model Management
-    def add_model(self, model_name: str, input_cost: float, output_cost: float) -> int:
+    def add_model(self, model_name: str, input_cost: float, output_cost: float, provider_name: Optional[str] = None) -> int:
+        """Add or update model (backward compatible, provider_name is optional)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT OR REPLACE INTO models (model_name, input_cost_per_1k, output_cost_per_1k)
-            VALUES (?, ?, ?)
-        """, (model_name, input_cost, output_cost))
+            INSERT OR REPLACE INTO models (model_name, input_cost_per_1k, output_cost_per_1k, provider_name)
+            VALUES (?, ?, ?, ?)
+        """, (model_name, input_cost, output_cost, provider_name))
         model_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -363,10 +396,10 @@ class Database:
     def get_summary_stats(self, user_id: Optional[int] = None) -> Dict:
         conn = self.get_connection()
         cursor = conn.cursor()
-        
+
         if user_id:
             cursor.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_requests,
                     SUM(input_tokens) as total_input_tokens,
                     SUM(output_tokens) as total_output_tokens,
@@ -378,7 +411,7 @@ class Database:
             """, (user_id,))
         else:
             cursor.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as total_requests,
                     SUM(input_tokens) as total_input_tokens,
                     SUM(output_tokens) as total_output_tokens,
@@ -387,10 +420,10 @@ class Database:
                     AVG(response_time) as avg_response_time
                 FROM usage_logs
             """)
-        
+
         row = cursor.fetchone()
         conn.close()
-        
+
         return {
             "total_requests": row[0] or 0,
             "total_input_tokens": row[1] or 0,
@@ -399,3 +432,261 @@ class Database:
             "total_cost": row[4] or 0.0,
             "avg_response_time": row[5] or 0.0
         }
+
+    # LLM Provider Management
+    def create_provider(self, provider_name: str, base_url: str, api_key: Optional[str] = None,
+                       allowed_models: Optional[List[str]] = None) -> int:
+        """Create a new LLM provider with encrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Encrypt API key if provided
+        encrypted_key = encrypt_api_key(api_key) if api_key else None
+        allowed_models_json = json.dumps(allowed_models if allowed_models else [])
+
+        try:
+            cursor.execute("""
+                INSERT INTO llm_providers (provider_name, base_url, api_key, allowed_models, health_status)
+                VALUES (?, ?, ?, ?, 'unknown')
+            """, (provider_name, base_url, encrypted_key, allowed_models_json))
+            provider_id = cursor.lastrowid
+            conn.commit()
+            logger.info(f"Created provider: {provider_name} with ID: {provider_id}")
+            return provider_id
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Provider {provider_name} already exists")
+            raise
+        finally:
+            conn.close()
+
+    def get_provider(self, provider_id: int) -> Optional[Dict]:
+        """Get provider by ID with decrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM llm_providers WHERE id = ?", (provider_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                "id": row[0],
+                "provider_name": row[1],
+                "base_url": row[2],
+                "api_key": decrypt_api_key(row[3]) if row[3] else None,
+                "api_key_masked": mask_api_key(decrypt_api_key(row[3])) if row[3] else None,
+                "allowed_models": json.loads(row[4]) if row[4] else [],
+                "is_active": row[5],
+                "last_health_check": row[6],
+                "health_status": row[7],
+                "created_at": row[8],
+                "updated_at": row[9]
+            }
+        return None
+
+    def get_provider_by_name(self, provider_name: str) -> Optional[Dict]:
+        """Get provider by name with decrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM llm_providers WHERE provider_name = ?", (provider_name,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                "id": row[0],
+                "provider_name": row[1],
+                "base_url": row[2],
+                "api_key": decrypt_api_key(row[3]) if row[3] else None,
+                "api_key_masked": mask_api_key(decrypt_api_key(row[3])) if row[3] else None,
+                "allowed_models": json.loads(row[4]) if row[4] else [],
+                "is_active": row[5],
+                "last_health_check": row[6],
+                "health_status": row[7],
+                "created_at": row[8],
+                "updated_at": row[9]
+            }
+        return None
+
+    def get_all_providers(self, include_inactive: bool = True) -> List[Dict]:
+        """Get all providers with masked API keys (for UI display)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if include_inactive:
+            cursor.execute("SELECT * FROM llm_providers ORDER BY created_at DESC")
+        else:
+            cursor.execute("SELECT * FROM llm_providers WHERE is_active = 1 ORDER BY created_at DESC")
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            "id": row[0],
+            "provider_name": row[1],
+            "base_url": row[2],
+            "api_key_masked": mask_api_key(decrypt_api_key(row[3])) if row[3] else None,
+            "allowed_models": json.loads(row[4]) if row[4] else [],
+            "is_active": row[5],
+            "last_health_check": row[6],
+            "health_status": row[7],
+            "created_at": row[8],
+            "updated_at": row[9]
+        } for row in rows]
+
+    def update_provider(self, provider_id: int, provider_name: Optional[str] = None,
+                       base_url: Optional[str] = None, api_key: Optional[str] = None,
+                       allowed_models: Optional[List[str]] = None, is_active: Optional[bool] = None) -> bool:
+        """Update provider details"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if provider_name is not None:
+            updates.append("provider_name = ?")
+            params.append(provider_name)
+
+        if base_url is not None:
+            updates.append("base_url = ?")
+            params.append(base_url)
+
+        if api_key is not None:
+            updates.append("api_key = ?")
+            params.append(encrypt_api_key(api_key))
+
+        if allowed_models is not None:
+            updates.append("allowed_models = ?")
+            params.append(json.dumps(allowed_models))
+
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(1 if is_active else 0)
+
+        if not updates:
+            conn.close()
+            return False
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(provider_id)
+
+        cursor.execute(f"""
+            UPDATE llm_providers
+            SET {', '.join(updates)}
+            WHERE id = ?
+        """, params)
+
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        logger.info(f"Updated provider ID {provider_id}, affected rows: {affected}")
+        return affected > 0
+
+    def update_provider_health(self, provider_id: int, health_status: str):
+        """Update provider health check status"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE llm_providers
+            SET health_status = ?, last_health_check = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (health_status, provider_id))
+        conn.commit()
+        conn.close()
+
+    def delete_provider(self, provider_id: int):
+        """Delete provider and set associated models to inactive"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Get provider name first
+        cursor.execute("SELECT provider_name FROM llm_providers WHERE id = ?", (provider_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return
+
+        provider_name = row[0]
+
+        # Set models associated with this provider to inactive
+        cursor.execute("UPDATE models SET is_active = 0 WHERE provider_name = ?", (provider_name,))
+
+        # Delete the provider
+        cursor.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
+
+        conn.commit()
+        conn.close()
+        logger.info(f"Deleted provider ID {provider_id} ({provider_name})")
+
+    def get_provider_by_model(self, model_name: str) -> Optional[Dict]:
+        """Get provider information by model name"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # First, get the model to find its provider
+        cursor.execute("SELECT provider_name FROM models WHERE model_name = ? AND is_active = 1", (model_name,))
+        row = cursor.fetchone()
+
+        if not row or not row[0]:
+            conn.close()
+            return None
+
+        provider_name = row[0]
+
+        # Then get the provider details
+        cursor.execute("SELECT * FROM llm_providers WHERE provider_name = ? AND is_active = 1", (provider_name,))
+        provider_row = cursor.fetchone()
+        conn.close()
+
+        if provider_row:
+            return {
+                "id": provider_row[0],
+                "provider_name": provider_row[1],
+                "base_url": provider_row[2],
+                "api_key": decrypt_api_key(provider_row[3]) if provider_row[3] else None,
+                "allowed_models": json.loads(provider_row[4]) if provider_row[4] else [],
+                "is_active": provider_row[5],
+                "last_health_check": provider_row[6],
+                "health_status": provider_row[7],
+                "created_at": provider_row[8],
+                "updated_at": provider_row[9]
+            }
+        return None
+
+    # Update existing model methods to support provider association
+    def add_model_with_provider(self, model_name: str, input_cost: float, output_cost: float,
+                                provider_name: Optional[str] = None) -> int:
+        """Add or update model with provider association"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO models (model_name, input_cost_per_1k, output_cost_per_1k, provider_name)
+            VALUES (?, ?, ?, ?)
+        """, (model_name, input_cost, output_cost, provider_name))
+        model_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        logger.info(f"Added/updated model: {model_name} for provider: {provider_name}")
+        return model_id
+
+    def get_models_by_provider(self, provider_name: str) -> List[Dict]:
+        """Get all models for a specific provider"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM models
+            WHERE provider_name = ? AND is_active = 1
+            ORDER BY model_name
+        """, (provider_name,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            "id": row[0],
+            "model_name": row[1],
+            "input_cost_per_1k": row[2],
+            "output_cost_per_1k": row[3],
+            "provider_name": row[4],
+            "is_active": row[5],
+            "created_at": row[6]
+        } for row in rows]

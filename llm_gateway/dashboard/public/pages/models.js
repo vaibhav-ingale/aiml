@@ -9,7 +9,7 @@ export function renderModels() {
       </div>
     </div>
 
-   
+
 
     <div class="card">
       <h3>Cost Calculator</h3>
@@ -31,34 +31,10 @@ export function renderModels() {
         <div id="calcResult" class="notice"></div>
       </div>
     </div>
- <div class="grid-2">
-      <div class="card">
-        <h3>Configured Models</h3>
-        <div class="table-wrap" id="modelsTable"></div>
-      </div>
-      <div class="card">
-        <h3>Add Model Pricing</h3>
-        <form id="modelForm" class="form-grid">
-          <div>
-            <label for="modelName">Model name</label>
-            <input id="modelName" name="model_name" placeholder="e.g. llama2" required />
-          </div>
-          <div>
-            <label for="inputCost">Input cost ($/1K)</label>
-            <input id="inputCost" name="input_cost_per_1k" type="number" min="0" step="0.0001" value="0.001" />
-          </div>
-          <div>
-            <label for="outputCost">Output cost ($/1K)</label>
-            <input id="outputCost" name="output_cost_per_1k" type="number" min="0" step="0.0001" value="0.002" />
-          </div>
-          <div class="button-row">
-            <button class="primary" type="submit">Add / Update Model</button>
-          </div>
-        </form>
-        <div id="modelNotice" class="notice"></div>
-      </div>
 
-
+    <div class="card">
+      <h3>Configured Models</h3>
+      <div class="table-wrap" id="modelsTable"></div>
     </div>
   `;
 }
@@ -66,20 +42,42 @@ export function renderModels() {
 export async function afterRenderModels() {
   const tableWrap = document.querySelector("#modelsTable");
   const modelSelect = document.querySelector("#calcModel");
-  const notice = document.querySelector("#modelNotice");
   const result = document.querySelector("#calcResult");
-  notice.style.display = "none";
+
+  let allModels = [];
 
   const loadModels = async () => {
     const models = await api("models");
+    allModels = models;
+
+    // Build table with edit/save functionality
     const rows = models.map((model) => [
       model.model_name,
-      formatMoney(model.input_cost_per_1k, 6),
-      formatMoney(model.output_cost_per_1k, 6),
-      `<button class="danger" data-id="${model.id}">Delete</button>`,
+      model.provider_name || "-",
+      `<span class="price-display" data-model="${model.model_name}" data-field="input">${formatMoney(model.input_cost_per_1k, 6)}</span>
+       <input type="number" step="0.000001" min="0" value="${model.input_cost_per_1k}"
+         class="price-input" data-model="${model.model_name}" data-field="input"
+         style="display: none; width: 100px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text);" />`,
+      `<span class="price-display" data-model="${model.model_name}" data-field="output">${formatMoney(model.output_cost_per_1k, 6)}</span>
+       <input type="number" step="0.000001" min="0" value="${model.output_cost_per_1k}"
+         class="price-input" data-model="${model.model_name}" data-field="output"
+         style="display: none; width: 100px; padding: 4px 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text);" />`,
+      `<div class="button-row">
+        <button class="secondary btn-sm" data-action="edit" data-model="${model.model_name}">
+          <i class="fa-solid fa-edit"></i> Edit
+        </button>
+        <button class="primary btn-sm" data-action="save" data-model="${model.model_name}" style="display: none;">
+          <i class="fa-solid fa-save"></i> Save
+        </button>
+        <button class="danger btn-sm" data-id="${model.id}">
+          <i class="fa-solid fa-trash"></i> Delete
+        </button>
+      </div>`,
     ]);
 
-    tableWrap.innerHTML = buildTable(["Model", "Input", "Output", ""], rows);
+    tableWrap.innerHTML = buildTable(["Model", "Provider", "Input ($/1K)", "Output ($/1K)", "Actions"], rows);
+
+    // Delete button handler
     tableWrap.querySelectorAll("button[data-id]").forEach((button) => {
       button.addEventListener("click", async () => {
         if (!window.confirm("Delete this model?")) return;
@@ -88,6 +86,68 @@ export async function afterRenderModels() {
       });
     });
 
+    // Edit button handler
+    tableWrap.querySelectorAll("button[data-action='edit']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const modelName = button.dataset.model;
+        const row = button.closest("tr");
+
+        // Hide displays, show inputs
+        row.querySelectorAll(".price-display").forEach(el => el.style.display = "none");
+        row.querySelectorAll(".price-input").forEach(el => el.style.display = "inline-block");
+
+        // Hide edit button, show save button
+        button.style.display = "none";
+        row.querySelector("button[data-action='save']").style.display = "inline-flex";
+      });
+    });
+
+    // Save button handler for inline editing
+    tableWrap.querySelectorAll("button[data-action='save']").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const modelName = button.dataset.model;
+        const row = button.closest("tr");
+        const inputCostField = row.querySelector("input[data-field='input']");
+        const outputCostField = row.querySelector("input[data-field='output']");
+
+        const inputCost = parseFloat(inputCostField.value);
+        const outputCost = parseFloat(outputCostField.value);
+
+        // Get the model's existing provider_name from allModels
+        const model = allModels.find(m => m.model_name === modelName);
+        const providerName = model ? model.provider_name : null;
+
+        try {
+          await api("models", {
+            method: "POST",
+            body: JSON.stringify({
+              model_name: modelName,
+              input_cost_per_1k: inputCost,
+              output_cost_per_1k: outputCost,
+            }),
+          });
+
+          // Show success feedback
+          button.innerHTML = '<i class="fa-solid fa-check"></i> Saved';
+          button.classList.remove('primary');
+          button.classList.add('success');
+
+          setTimeout(async () => {
+            await loadModels();
+          }, 1000);
+
+        } catch (error) {
+          alert(`Failed to save: ${error.message}`);
+          // Revert to edit mode on error
+          row.querySelectorAll(".price-display").forEach(el => el.style.display = "inline");
+          row.querySelectorAll(".price-input").forEach(el => el.style.display = "none");
+          button.style.display = "none";
+          row.querySelector("button[data-action='edit']").style.display = "inline-flex";
+        }
+      });
+    });
+
+    // Populate calculator dropdown
     modelSelect.innerHTML = models
       .map((model) => `<option value="${model.model_name}">${model.model_name}</option>`)
       .join("");
@@ -117,31 +177,6 @@ export async function afterRenderModels() {
       6
     )} | Total: ${formatMoney(total, 6)}`;
   };
-
-  document.querySelector("#modelForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    notice.classList.remove("error");
-    notice.style.display = "none";
-    const form = event.target;
-    try {
-      await api("models", {
-        method: "POST",
-        body: JSON.stringify({
-          model_name: form.model_name.value.trim(),
-          input_cost_per_1k: Number(form.input_cost_per_1k.value || 0),
-          output_cost_per_1k: Number(form.output_cost_per_1k.value || 0),
-        }),
-      });
-      notice.textContent = "Model saved.";
-      notice.style.display = "block";
-      form.reset();
-      await loadModels();
-    } catch (error) {
-      notice.textContent = error.message;
-      notice.classList.add("error");
-      notice.style.display = "block";
-    }
-  });
 
   document.querySelector("#calcForm").addEventListener("input", async () => {
     const models = await api("models");
