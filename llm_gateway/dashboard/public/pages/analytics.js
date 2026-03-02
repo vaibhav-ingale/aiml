@@ -21,13 +21,16 @@ export function renderAnalytics() {
 
     <div class="grid-2">
       <div class="card">
-        <label for="timeRange">Time range</label>
-        <select id="timeRange">
-          <option value="7">Last 7 Days</option>
-          <option value="30" selected>Last 30 Days</option>
-          <option value="90">Last 90 Days</option>
-          <option value="999999">All Time</option>
-        </select>
+        <label>Time range</label>
+        <div class="btn-group" id="timeRange" style="flex-wrap: wrap; margin-top: 8px;">
+          <button class="btn-sm secondary" data-hours="1">1hr</button>
+          <button class="btn-sm secondary" data-hours="12">12hr</button>
+          <button class="btn-sm secondary" data-hours="24">24hr</button>
+          <button class="btn-sm secondary" data-days="7">7d</button>
+          <button class="btn-sm secondary active" data-days="30">30d</button>
+          <button class="btn-sm secondary" data-days="90">90d</button>
+          <button class="btn-sm secondary" data-days="999999">All</button>
+        </div>
       </div>
       <div class="card">
         <label for="userFilter">Filter by user</label>
@@ -106,7 +109,9 @@ export function renderAnalytics() {
 
 export async function afterRenderAnalytics() {
   const userFilter = document.querySelector("#userFilter");
-  const timeRange = document.querySelector("#timeRange");
+  const timeRangeButtons = document.querySelectorAll("#timeRange button");
+
+  let currentDays = 30; // Default to 30 days
 
   const users = await api("users");
   userFilter.innerHTML = [
@@ -115,9 +120,8 @@ export async function afterRenderAnalytics() {
   ].join("");
 
   const loadAnalytics = async () => {
-    const days = Number(timeRange.value);
     const userId = userFilter.value !== "all" ? Number(userFilter.value) : null;
-    const query = `usage?days=${days}${userId ? `&user_id=${userId}` : ""}`;
+    const query = `usage?days=${currentDays}${userId ? `&user_id=${userId}` : ""}`;
     const logs = await api(query);
 
     updateMetrics(logs);
@@ -126,7 +130,25 @@ export async function afterRenderAnalytics() {
     renderHeatmap(logs);
   };
 
-  timeRange.addEventListener("change", loadAnalytics);
+  // Setup time range buttons
+  timeRangeButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      // Calculate days from hours or days attribute
+      if (button.dataset.hours) {
+        const hours = Number(button.dataset.hours);
+        currentDays = hours / 24; // Convert hours to fractional days
+      } else if (button.dataset.days) {
+        currentDays = Number(button.dataset.days);
+      }
+
+      // Update active state
+      timeRangeButtons.forEach((btn) => btn.classList.remove("active"));
+      button.classList.add("active");
+
+      await loadAnalytics();
+    });
+  });
+
   userFilter.addEventListener("change", loadAnalytics);
 
   await loadAnalytics();
@@ -182,23 +204,46 @@ function renderCharts(logs) {
     options: baseChartOptions(),
   });
 
-  const inputTokens = sumBy(logs, "input_tokens");
-  const outputTokens = sumBy(logs, "output_tokens");
+  // Token Distribution over time
+  const inputTokensByDate = dateLabels.map((label) => sumBy(groupedByDate[label], "input_tokens"));
+  const outputTokensByDate = dateLabels.map((label) => sumBy(groupedByDate[label], "output_tokens"));
+
   charts.tokens = new window.Chart(tokensCanvas, {
-    type: "doughnut",
+    type: "line",
     data: {
-      labels: ["Input", "Output"],
+      labels: dateLabels,
       datasets: [
         {
-          data: [inputTokens, outputTokens],
-          backgroundColor: ["#2dd4bf", "#f7b801"],
+          label: "Input Tokens",
+          data: inputTokensByDate,
+          borderColor: "#2dd4bf",
+          backgroundColor: "rgba(45, 212, 191, 0.2)",
+          fill: true,
+          tension: 0.3,
+        },
+        {
+          label: "Output Tokens",
+          data: outputTokensByDate,
+          borderColor: "#f7b801",
+          backgroundColor: "rgba(247, 184, 1, 0.2)",
+          fill: true,
+          tension: 0.3,
         },
       ],
     },
-    options: baseChartOptions(),
+    options: {
+      ...baseChartOptions(),
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: "#b9c1bf", font: { size: 11 } }
+        },
+      },
+    },
   });
 
   const costByDate = dateLabels.map((label) => sumBy(groupedByDate[label], "cost"));
+
   charts.cost = new window.Chart(costCanvas, {
     type: "bar",
     data: {
@@ -216,6 +261,8 @@ function renderCharts(logs) {
 
   const responseTimes = logs.map((log) => Number(log.response_time || 0));
   const bins = binValues(responseTimes, 8);
+  const latencyPercentiles = calculatePercentiles(responseTimes);
+
   charts.latency = new window.Chart(latencyCanvas, {
     type: "bar",
     data: {
@@ -225,10 +272,70 @@ function renderCharts(logs) {
           label: "Responses",
           data: bins.counts,
           backgroundColor: "rgba(45, 212, 191, 0.4)",
+          order: 2,
+        },
+        {
+          type: "line",
+          label: `p50: ${latencyPercentiles.p50.toFixed(2)}s`,
+          data: Array(bins.labels.length).fill(latencyPercentiles.p50),
+          borderColor: "rgba(247, 184, 1, 0.7)",
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: false,
+          pointRadius: 0,
+          order: 1,
+          yAxisID: 'y-latency',
+        },
+        {
+          type: "line",
+          label: `p90: ${latencyPercentiles.p90.toFixed(2)}s`,
+          data: Array(bins.labels.length).fill(latencyPercentiles.p90),
+          borderColor: "rgba(255, 107, 107, 0.7)",
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: false,
+          pointRadius: 0,
+          order: 1,
+          yAxisID: 'y-latency',
+        },
+        {
+          type: "line",
+          label: `p95: ${latencyPercentiles.p95.toFixed(2)}s`,
+          data: Array(bins.labels.length).fill(latencyPercentiles.p95),
+          borderColor: "rgba(139, 92, 246, 0.7)",
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: false,
+          pointRadius: 0,
+          order: 1,
+          yAxisID: 'y-latency',
         },
       ],
     },
-    options: baseChartOptions(),
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: "#b9c1bf", font: { size: 11 } }
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#b9c1bf" }, grid: { color: "rgba(255,255,255,0.04)" } },
+        y: {
+          ticks: { color: "#b9c1bf" },
+          grid: { color: "rgba(255,255,255,0.04)" },
+          title: { display: true, text: "Count", color: "#b9c1bf" }
+        },
+        'y-latency': {
+          type: 'linear',
+          position: 'right',
+          ticks: { color: "#b9c1bf" },
+          grid: { display: false },
+          title: { display: true, text: "Response Time (s)", color: "#b9c1bf" }
+        },
+      },
+    },
   });
 
   const hourlyCounts = Array.from({ length: 24 }, () => 0);
@@ -236,6 +343,7 @@ function renderCharts(logs) {
     const hour = parseLocalHour(log.created_at);
     hourlyCounts[hour] += 1;
   });
+
   charts.hourly = new window.Chart(hourlyCanvas, {
     type: "bar",
     data: {
@@ -275,6 +383,24 @@ function renderCharts(logs) {
     },
     options: baseChartOptions(),
   });
+}
+
+function calculatePercentiles(values) {
+  if (!values || values.length === 0) {
+    return { p50: 0, p90: 0, p95: 0 };
+  }
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const getPercentile = (p) => {
+    const index = Math.ceil((p / 100) * sorted.length) - 1;
+    return sorted[Math.max(0, index)];
+  };
+
+  return {
+    p50: getPercentile(50),
+    p90: getPercentile(90),
+    p95: getPercentile(95),
+  };
 }
 
 function parseLocalHour(value) {

@@ -30,7 +30,15 @@ export function renderDashboard() {
 
     <div class="grid-2">
       <div class="card">
-        <h3>Recent Activity (Last 7 Days)</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0;">Recent Activity</h3>
+          <div class="btn-group" id="activityTimeRange">
+            <button class="btn-sm secondary active" data-days="1">Today</button>
+            <button class="btn-sm secondary" data-days="7">7d</button>
+            <button class="btn-sm secondary" data-days="15">15d</button>
+            <button class="btn-sm secondary" data-days="30">30d</button>
+          </div>
+        </div>
         <div class="chart-wrap"><canvas id="requestsChart"></canvas></div>
         <div class="empty" id="requestsEmpty"></div>
       </div>
@@ -73,17 +81,44 @@ export async function afterRenderDashboard() {
     );
   }
 
-  let usage7 = [];
+  // Load initial data for charts
+  let currentActivityDays = 1;
+  const loadActivityChart = async (days) => {
+    try {
+      const usage = await api(`usage?days=${days}`);
+      renderRequestsChart(usage);
+    } catch (error) {
+      document.querySelector("#requestsEmpty").textContent = error.message;
+    }
+  };
+
+  // Load initial charts
+  await loadActivityChart(currentActivityDays);
+
   let usage30 = [];
   try {
-    usage7 = await api("usage?days=7");
     usage30 = await api("usage?days=30");
   } catch (error) {
-    document.querySelector("#requestsEmpty").textContent = error.message;
+    // Error handling for cost chart
   }
-
-  renderRequestsChart(usage7);
   renderCostChart(usage30);
+
+  // Setup time range selector for Recent Activity
+  document.querySelectorAll("#activityTimeRange button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const days = Number(button.dataset.days);
+      currentActivityDays = days;
+
+      // Update active state
+      document.querySelectorAll("#activityTimeRange button").forEach((btn) => {
+        btn.classList.remove("active");
+      });
+      button.classList.add("active");
+
+      // Reload chart
+      await loadActivityChart(days);
+    });
+  });
 
   try {
     const users = await api("users");
@@ -109,12 +144,20 @@ export async function afterRenderDashboard() {
   }
 }
 
+let requestsChart = null;
+
 function renderRequestsChart(logs) {
   const canvas = document.querySelector("#requestsChart");
   const empty = document.querySelector("#requestsEmpty");
 
+  // Destroy existing chart if it exists
+  if (requestsChart) {
+    requestsChart.destroy();
+    requestsChart = null;
+  }
+
   if (!logs.length) {
-    empty.textContent = "No activity in the last 7 days.";
+    empty.textContent = "No activity in the selected time range.";
     canvas.style.display = "none";
     return;
   }
@@ -125,7 +168,7 @@ function renderRequestsChart(logs) {
 
   empty.textContent = "";
   canvas.style.display = "block";
-  new window.Chart(canvas, {
+  requestsChart = new window.Chart(canvas, {
     type: "line",
     data: {
       labels,
@@ -173,6 +216,24 @@ function renderCostChart(logs) {
 
   empty.textContent = "";
   canvas.style.display = "block";
+
+  // Generate different colors for each model
+  const colors = [
+    { bg: "rgba(247, 184, 1, 0.6)", border: "#f7b801" },      // Yellow
+    { bg: "rgba(45, 212, 191, 0.6)", border: "#2dd4bf" },     // Teal
+    { bg: "rgba(255, 107, 107, 0.6)", border: "#ff6b6b" },    // Red
+    { bg: "rgba(16, 185, 129, 0.6)", border: "#10b981" },     // Green
+    { bg: "rgba(139, 92, 246, 0.6)", border: "#8b5cf6" },     // Purple
+    { bg: "rgba(59, 130, 246, 0.6)", border: "#3b82f6" },     // Blue
+    { bg: "rgba(236, 72, 153, 0.6)", border: "#ec4899" },     // Pink
+    { bg: "rgba(245, 158, 11, 0.6)", border: "#f59e0b" },     // Amber
+    { bg: "rgba(20, 184, 166, 0.6)", border: "#14b8a6" },     // Cyan
+    { bg: "rgba(168, 85, 247, 0.6)", border: "#a855f7" },     // Violet
+  ];
+
+  const backgroundColors = data.map((_, i) => colors[i % colors.length].bg);
+  const borderColors = data.map((_, i) => colors[i % colors.length].border);
+
   new window.Chart(canvas, {
     type: "bar",
     data: {
@@ -181,8 +242,8 @@ function renderCostChart(logs) {
         {
           label: "Cost",
           data,
-          backgroundColor: "rgba(247, 184, 1, 0.6)",
-          borderColor: "#f7b801",
+          backgroundColor: backgroundColors,
+          borderColor: borderColors,
           borderWidth: 1,
         },
       ],

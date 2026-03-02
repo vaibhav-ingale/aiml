@@ -500,6 +500,21 @@ button.danger {
   cursor: pointer;
 }
 
+.btn-group {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.btn-group button {
+  transition: all 0.2s ease;
+}
+
+.btn-group button.active {
+  background: rgba(247, 184, 1, 0.2);
+  border-color: rgba(247, 184, 1, 0.4);
+  color: var(--accent);
+}
+
 .notice {
   margin-top: 12px;
   padding: 12px 14px;
