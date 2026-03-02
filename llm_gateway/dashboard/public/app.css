@@ -1324,3 +1324,32 @@ button.danger {
     width: 100%;
   }
 }
+
+/* LLM Provider Styles */
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.model-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(226, 177, 31, 0.3);
+  transform: translateX(4px);
+}
+
+.model-item span {
+  color: var(--text);
+}

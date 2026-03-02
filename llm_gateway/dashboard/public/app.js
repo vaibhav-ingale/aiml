@@ -4,6 +4,7 @@ import { renderApiKeys, afterRenderApiKeys } from "./pages/api-keys.js";
 import { renderModels, afterRenderModels } from "./pages/models.js";
 import { renderAnalytics, afterRenderAnalytics } from "./pages/analytics.js";
 import { renderTraces, afterRenderTraces } from "./pages/traces.js";
+import { renderLlmProvider, afterRenderLlmProvider } from "./pages/llm-provider.js";
 
 const routes = {
   dashboard: {
@@ -29,6 +30,10 @@ const routes = {
   traces: {
     render: renderTraces,
     afterRender: afterRenderTraces,
+  },
+  "llm-provider": {
+    render: renderLlmProvider,
+    afterRender: afterRenderLlmProvider,
   },
 };
 
