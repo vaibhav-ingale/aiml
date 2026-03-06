@@ -201,6 +201,54 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+@app.get("/v1/models")
+async def list_models(authorization: Optional[str] = Header(None)):
+    """List all models allowed for the authenticated API key"""
+    # Extract API key
+    api_key = None
+    if authorization and authorization.startswith("Bearer "):
+        api_key = authorization.replace("Bearer ", "")
+
+    # Verify API key
+    key_info = verify_api_key(api_key)
+    if not key_info:
+        raise HTTPException(status_code=401, detail="Invalid or expired API key")
+
+    # Get allowed models for this API key
+    allowed_models = key_info.get("allowed_models", [])
+    wildcard_entries = {"*", "* (All Models)"}
+    has_wildcard = any(entry in wildcard_entries for entry in allowed_models)
+
+    # Get all models from database
+    all_models = db.get_all_models()
+
+    # Filter models based on API key permissions
+    if has_wildcard:
+        # Return all active models
+        filtered_models = [m for m in all_models if m.get("is_active", True)]
+    else:
+        # Return only allowed models
+        filtered_models = [m for m in all_models if m["model_name"] in allowed_models and m.get("is_active", True)]
+
+    # Format response in OpenAI-compatible format
+    model_list = {
+        "object": "list",
+        "data": [
+            {
+                "id": model["model_name"],
+                "object": "model",
+                "created": int(datetime.fromisoformat(model["created_at"]).timestamp()) if model.get("created_at") else int(time.time()),
+                "owned_by": model.get("provider_name", "local"),
+                "permission": [],
+                "root": model["model_name"],
+                "parent": None,
+            }
+            for model in filtered_models
+        ]
+    }
+
+    return model_list
+
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
 async def proxy_all(
     request: Request,

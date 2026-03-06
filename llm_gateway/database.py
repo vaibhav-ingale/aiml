@@ -313,7 +313,7 @@ class Database:
     def get_all_models(self) -> List[Dict]:
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM models WHERE is_active = 1 ORDER BY model_name")
+        cursor.execute("SELECT id, model_name, input_cost_per_1k, output_cost_per_1k, is_active, created_at, provider_name FROM models WHERE is_active = 1 ORDER BY model_name")
         rows = cursor.fetchall()
         conn.close()
         return [{
@@ -322,7 +322,8 @@ class Database:
             "input_cost_per_1k": row[2],
             "output_cost_per_1k": row[3],
             "is_active": row[4],
-            "created_at": row[5]
+            "created_at": row[5],
+            "provider_name": row[6]
         } for row in rows]
     
     # Usage Logging
