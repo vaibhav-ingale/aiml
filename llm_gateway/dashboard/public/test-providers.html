@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Provider API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            background: #f9f9f9;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #4CAF50;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .error {
+            border-left-color: #f44336;
+            color: #f44336;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Provider API Test Page</h1>
+
+    <div class="test-section">
+        <h2>1. Get All Providers</h2>
+        <button onclick="getAllProviders()">Get Providers</button>
+        <div id="result-get" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Create Provider</h2>
+        <input type="text" id="provider-name" placeholder="Provider Name (e.g., Ollama)" value="TestOllama">
+        <input type="text" id="provider-url" placeholder="Base URL (e.g., http://localhost:11434)" value="http://localhost:11434">
+        <input type="text" id="provider-key" placeholder="API Key (optional)">
+        <button onclick="createProvider()">Create Provider</button>
+        <div id="result-create" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Check Provider Health</h2>
+        <input type="number" id="health-id" placeholder="Provider ID" value="1">
+        <button onclick="checkHealth()">Check Health</button>
+        <div id="result-health" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Get Provider Models</h2>
+        <input type="number" id="models-id" placeholder="Provider ID" value="1">
+        <button onclick="getModels()">Get Models</button>
+        <div id="result-models" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8010/api';
+
+        function showResult(elementId, data, isError = false) {
+            const el = document.getElementById(elementId);
+            el.className = isError ? 'result error' : 'result';
+            el.textContent = typeof data === 'object' ? JSON.stringify(data, null, 2) : data;
+        }
+
+        async function getAllProviders() {
+            try {
+                const response = await fetch(`${API_BASE}/providers`);
+                const data = await response.json();
+                showResult('result-get', data);
+            } catch (error) {
+                showResult('result-get', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function createProvider() {
+            try {
+                const provider = {
+                    provider_name: document.getElementById('provider-name').value,
+                    base_url: document.getElementById('provider-url').value,
+                    api_key: document.getElementById('provider-key').value || null
+                };
+
+                const response = await fetch(`${API_BASE}/providers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(provider)
+                });
+
+                const data = await response.json();
+                showResult('result-create', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data
+                });
+
+                // Refresh the providers list
+                getAllProviders();
+            } catch (error) {
+                showResult('result-create', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function checkHealth() {
+            try {
+                const id = document.getElementById('health-id').value;
+                const response = await fetch(`${API_BASE}/providers/${id}/health`);
+                const data = await response.json();
+                showResult('result-health', data);
+            } catch (error) {
+                showResult('result-health', `Error: ${error.message}`, true);
+            }
+        }
+
+        async function getModels() {
+            try {
+                const id = document.getElementById('models-id').value;
+                const response = await fetch(`${API_BASE}/providers/${id}/models`);
+                const data = await response.json();
+                showResult('result-models', data);
+            } catch (error) {
+                showResult('result-models', `Error: ${error.message}`, true);
+            }
+        }
+
+        // Auto-load providers on page load
+        window.onload = getAllProviders;
+    </script>
+</body>
+</html>

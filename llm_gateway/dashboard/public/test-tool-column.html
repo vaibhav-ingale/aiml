@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tool Column Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #0d1513; color: #f2f4f3; }
+        pre { background: #15221f; padding: 10px; border-radius: 8px; overflow-x: auto; }
+        .success { color: #2dd4bf; }
+        .error { color: #ff6b6b; }
+        button { padding: 10px 20px; margin: 5px; background: #f7b801; border: none; border-radius: 8px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Dashboard Tool Column Diagnostic</h1>
+    
+    <button onclick="testAPI()">1. Test API</button>
+    <button onclick="checkLocalStorage()">2. Check LocalStorage</button>
+    <button onclick="clearLocalStorage()">3. Clear LocalStorage</button>
+    <button onclick="window.location.reload()">4. Reload Page</button>
+    
+    <h2>Results:</h2>
+    <pre id="output">Click a button to start testing...</pre>
+    
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            try {
+                const response = await fetch('http://localhost:8010/api/traces?limit=3&offset=0');
+                const data = await response.json();
+                
+                let result = '=== API TEST ===\n\n';
+                result += `Total traces: ${data.total}\n`;
+                result += `Traces returned: ${data.traces.length}\n\n`;
+                
+                data.traces.forEach((trace, i) => {
+                    result += `Trace ${i + 1}:\n`;
+                    result += `  ID: ${trace.id}\n`;
+                    result += `  Model: ${trace.model_name}\n`;
+                    result += `  tool_name: ${trace.tool_name || 'null'} ${trace.tool_name ? '✓' : '✗'}\n`;
+                    result += `  tool_call_type: ${trace.tool_call_type || 'null'}\n\n`;
+                });
+                
+                const hasToolNames = data.traces.some(t => t.tool_name);
+                result += hasToolNames ? 
+                    '<span class="success">✓ API is returning tool_name field!</span>' :
+                    '<span class="error">✗ No tool names found in API response</span>';
+                
+                output.innerHTML = result;
+            } catch (error) {
+                output.innerHTML = `<span class="error">ERROR: ${error.message}</span>`;
+            }
+        }
+        
+        function checkLocalStorage() {
+            const output = document.getElementById('output');
+            const saved = localStorage.getItem('traces_columns');
+            
+            let result = '=== LOCALSTORAGE TEST ===\n\n';
+            
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                result += 'Saved column preferences:\n';
+                result += JSON.stringify(parsed, null, 2) + '\n\n';
+                result += `tool_name column: ${parsed.tool_name !== undefined ? parsed.tool_name : 'NOT FOUND'}\n\n`;
+                
+                if (parsed.tool_name === undefined) {
+                    result += '<span class="error">✗ tool_name column not in localStorage!</span>\n';
+                    result += 'This is likely the issue. Click "Clear LocalStorage" then reload.';
+                } else if (parsed.tool_name === true) {
+                    result += '<span class="success">✓ tool_name is enabled in localStorage</span>';
+                } else {
+                    result += '<span class="error">✗ tool_name is disabled in localStorage</span>';
+                }
+            } else {
+                result += '<span class="success">No saved preferences (will use defaults)</span>';
+            }
+            
+            output.innerHTML = result;
+        }
+        
+        function clearLocalStorage() {
+            localStorage.removeItem('traces_columns');
+            document.getElementById('output').innerHTML = 
+                '<span class="success">✓ LocalStorage cleared!\n\nNow click "Reload Page" to test.</span>';
+        }
+    </script>
+</body>
+</html>
