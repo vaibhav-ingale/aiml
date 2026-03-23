@@ -387,6 +387,57 @@ const server = Bun.serve({
           return new Response(null, { status: 204 });
         }
 
+        // Custom Endpoints Management
+        if (pathname === "/api/custom-endpoints" && req.method === "GET") {
+          return jsonResponse(db.getAllCustomEndpoints());
+        }
+
+        if (pathname === "/api/custom-endpoints" && req.method === "POST") {
+          const body = await req.json();
+          if (!body.endpoint_name) return errorResponse("Endpoint name required", 400);
+          if (!body.endpoint_path) return errorResponse("Endpoint path required", 400);
+          if (!body.api_key) return errorResponse("API key required", 400);
+          if (!body.primary_model) return errorResponse("Primary model required", 400);
+
+          // Validate endpoint path format
+          if (!body.endpoint_path.startsWith("/")) {
+            return errorResponse("Endpoint path must start with /", 400);
+          }
+
+          try {
+            const endpointId = db.createCustomEndpoint(
+              body.endpoint_name,
+              body.endpoint_path,
+              body.api_key,
+              body.primary_model,
+              body.fallback_model || null
+            );
+            return jsonResponse({ id: endpointId }, 201);
+          } catch (error) {
+            return errorResponse(error instanceof Error ? error.message : "Failed to create endpoint", 500);
+          }
+        }
+
+        if (pathname.startsWith("/api/custom-endpoints/") && req.method === "GET") {
+          const endpointId = parseId(pathname);
+          const endpoint = db.getCustomEndpoint(endpointId);
+          if (!endpoint) return errorResponse("Endpoint not found", 404);
+          return jsonResponse(endpoint);
+        }
+
+        if (pathname.startsWith("/api/custom-endpoints/") && req.method === "PATCH") {
+          const endpointId = parseId(pathname);
+          const body = await req.json();
+          db.updateCustomEndpoint(endpointId, body);
+          return new Response(null, { status: 204 });
+        }
+
+        if (pathname.startsWith("/api/custom-endpoints/") && req.method === "DELETE") {
+          const endpointId = parseId(pathname);
+          db.deleteCustomEndpoint(endpointId);
+          return new Response(null, { status: 204 });
+        }
+
         return errorResponse("Not found", 404);
       } catch (error) {
         return errorResponse(error instanceof Error ? error.message : "Server error", 500);

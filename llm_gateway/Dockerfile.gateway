@@ -1,7 +1,8 @@
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    GATEWAY_RELOAD=false
 
 WORKDIR /app
 
@@ -10,7 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /data && ln -s /data/llm_gateway.db /app/llm_gateway.db
+RUN mkdir -p /data && \
+    rm -f /app/llm_gateway.db && \
+    ln -s /data/llm_gateway.db /app/llm_gateway.db
 
 EXPOSE 8008
 

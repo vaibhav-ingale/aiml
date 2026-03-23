@@ -101,9 +101,26 @@ class Database:
             logger.info("Adding provider_name column to models table")
             cursor.execute("ALTER TABLE models ADD COLUMN provider_name TEXT")
 
+        # Custom Endpoints table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS custom_endpoints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                endpoint_name TEXT UNIQUE NOT NULL,
+                endpoint_path TEXT UNIQUE NOT NULL,
+                api_key TEXT NOT NULL,
+                primary_model TEXT NOT NULL,
+                fallback_model TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create indexes (after ensuring columns exist)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_providers_active ON llm_providers(is_active)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_custom_endpoints_path ON custom_endpoints(endpoint_path)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_custom_endpoints_active ON custom_endpoints(is_active)")
 
         conn.commit()
         conn.close()
@@ -691,3 +708,162 @@ class Database:
             "is_active": row[5],
             "created_at": row[6]
         } for row in rows]
+
+    # Custom Endpoint Management
+    def create_custom_endpoint(self, endpoint_name: str, endpoint_path: str, api_key: str,
+                               primary_model: str, fallback_model: Optional[str] = None) -> int:
+        """Create a new custom endpoint with encrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # Encrypt API key
+        encrypted_key = encrypt_api_key(api_key)
+
+        try:
+            cursor.execute("""
+                INSERT INTO custom_endpoints (endpoint_name, endpoint_path, api_key, primary_model, fallback_model)
+                VALUES (?, ?, ?, ?, ?)
+            """, (endpoint_name, endpoint_path, encrypted_key, primary_model, fallback_model))
+            endpoint_id = cursor.lastrowid
+            conn.commit()
+            logger.info(f"Created custom endpoint: {endpoint_name} with ID: {endpoint_id}")
+            return endpoint_id
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Custom endpoint {endpoint_name} or path {endpoint_path} already exists")
+            raise
+        finally:
+            conn.close()
+
+    def get_custom_endpoint(self, endpoint_id: int) -> Optional[Dict]:
+        """Get custom endpoint by ID with decrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM custom_endpoints WHERE id = ?", (endpoint_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                "id": row[0],
+                "endpoint_name": row[1],
+                "endpoint_path": row[2],
+                "api_key": decrypt_api_key(row[3]),
+                "api_key_masked": mask_api_key(decrypt_api_key(row[3])),
+                "primary_model": row[4],
+                "fallback_model": row[5],
+                "is_active": row[6],
+                "created_at": row[7],
+                "updated_at": row[8]
+            }
+        return None
+
+    def get_custom_endpoint_by_path(self, endpoint_path: str) -> Optional[Dict]:
+        """Get custom endpoint by path with decrypted API key"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM custom_endpoints WHERE endpoint_path = ? AND is_active = 1", (endpoint_path,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                "id": row[0],
+                "endpoint_name": row[1],
+                "endpoint_path": row[2],
+                "api_key": decrypt_api_key(row[3]),
+                "api_key_masked": mask_api_key(decrypt_api_key(row[3])),
+                "primary_model": row[4],
+                "fallback_model": row[5],
+                "is_active": row[6],
+                "created_at": row[7],
+                "updated_at": row[8]
+            }
+        return None
+
+    def get_all_custom_endpoints(self, include_inactive: bool = True) -> List[Dict]:
+        """Get all custom endpoints with masked API keys"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        if include_inactive:
+            cursor.execute("SELECT * FROM custom_endpoints ORDER BY created_at DESC")
+        else:
+            cursor.execute("SELECT * FROM custom_endpoints WHERE is_active = 1 ORDER BY created_at DESC")
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            "id": row[0],
+            "endpoint_name": row[1],
+            "endpoint_path": row[2],
+            "api_key_masked": mask_api_key(decrypt_api_key(row[3])),
+            "primary_model": row[4],
+            "fallback_model": row[5],
+            "is_active": row[6],
+            "created_at": row[7],
+            "updated_at": row[8]
+        } for row in rows]
+
+    def update_custom_endpoint(self, endpoint_id: int, endpoint_name: Optional[str] = None,
+                               endpoint_path: Optional[str] = None, api_key: Optional[str] = None,
+                               primary_model: Optional[str] = None, fallback_model: Optional[str] = None,
+                               is_active: Optional[bool] = None) -> bool:
+        """Update custom endpoint details"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if endpoint_name is not None:
+            updates.append("endpoint_name = ?")
+            params.append(endpoint_name)
+
+        if endpoint_path is not None:
+            updates.append("endpoint_path = ?")
+            params.append(endpoint_path)
+
+        if api_key is not None:
+            updates.append("api_key = ?")
+            params.append(encrypt_api_key(api_key))
+
+        if primary_model is not None:
+            updates.append("primary_model = ?")
+            params.append(primary_model)
+
+        if fallback_model is not None:
+            updates.append("fallback_model = ?")
+            params.append(fallback_model)
+
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(1 if is_active else 0)
+
+        if not updates:
+            conn.close()
+            return False
+
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(endpoint_id)
+
+        cursor.execute(f"""
+            UPDATE custom_endpoints
+            SET {', '.join(updates)}
+            WHERE id = ?
+        """, params)
+
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        logger.info(f"Updated custom endpoint ID {endpoint_id}, affected rows: {affected}")
+        return affected > 0
+
+    def delete_custom_endpoint(self, endpoint_id: int):
+        """Delete custom endpoint"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM custom_endpoints WHERE id = ?", (endpoint_id,))
+        conn.commit()
+        conn.close()
+        logger.info(f"Deleted custom endpoint ID {endpoint_id}")

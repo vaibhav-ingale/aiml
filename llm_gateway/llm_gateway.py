@@ -28,6 +28,7 @@ DEBUG_TOKEN_TRACKING = os.getenv("DEBUG_TOKEN_TRACKING", "False").lower() == "tr
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://10.0.0.100:1234")  # Fallback for backward compatibility
 GATEWAY_HOST = os.getenv("GATEWAY_HOST", "0.0.0.0")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8008"))
+GATEWAY_RELOAD = os.getenv("GATEWAY_RELOAD", "True").lower() == "true"
 
 app = FastAPI(title="LLM Gateway API - Simple proxy that works!")
 
@@ -258,6 +259,146 @@ async def proxy_all(
 ):
     """Proxy all requests to LLM with API key authentication and dynamic provider routing"""
     start_time = time.time()
+
+    # Check if this is a custom endpoint request
+    request_path = "/" + path if path and not path.startswith("/") else path
+    custom_endpoint_path = request_path.split("/v1/")[0] if "/v1/" in request_path else None
+
+    if custom_endpoint_path and custom_endpoint_path != "":
+        # Try to get custom endpoint configuration
+        custom_endpoint = db.get_custom_endpoint_by_path(custom_endpoint_path)
+
+        if custom_endpoint:
+            logger.info(f"Custom endpoint matched: {custom_endpoint_path}")
+
+            # Use the custom endpoint's API key for authentication
+            api_key = custom_endpoint["api_key"]
+            key_info = verify_api_key(api_key)
+
+            if not key_info:
+                raise HTTPException(status_code=401, detail="Custom endpoint API key is invalid")
+
+            # Get request body and inject/override the model
+            body = None
+            raw_body = await request.body()
+            if raw_body:
+                try:
+                    body = json.loads(raw_body)
+                except json.JSONDecodeError:
+                    raise HTTPException(status_code=400, detail="Invalid JSON in request body")
+            else:
+                body = {}
+
+            # Override the model with primary model from custom endpoint
+            model_name = custom_endpoint["primary_model"]
+            body["model"] = model_name
+
+            # Get provider for the primary model
+            provider = get_provider_for_model(model_name)
+            if not provider:
+                # Try fallback model if primary model's provider is not available
+                if custom_endpoint["fallback_model"]:
+                    logger.warning(f"Primary model {model_name} provider not available, trying fallback")
+                    model_name = custom_endpoint["fallback_model"]
+                    body["model"] = model_name
+                    provider = get_provider_for_model(model_name)
+
+                    if not provider:
+                        raise HTTPException(
+                            status_code=503,
+                            detail=f"Neither primary nor fallback model providers are available"
+                        )
+                else:
+                    raise HTTPException(status_code=503, detail=f"Provider for model {model_name} is not available")
+
+            # Extract the actual API path (everything after custom endpoint path)
+            if "/v1/" in request_path:
+                api_path = request_path.split("/v1/", 1)[1]
+            else:
+                raise HTTPException(status_code=400, detail="Invalid endpoint path format")
+
+            # Route to the provider with the configured model
+            target_url = f"{provider['base_url']}/v1/{api_path}"
+            provider_api_key = provider.get("api_key")
+
+            # Prepare headers
+            proxy_headers = {"Content-Type": "application/json"}
+            if provider_api_key:
+                proxy_headers["Authorization"] = f"Bearer {provider_api_key}"
+
+            logger.info(f"Routing custom endpoint to {target_url} with model {model_name}")
+
+            # Make the request with fallback support
+            primary_model_name = model_name
+            fallback_attempted = False
+
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.request(
+                        method=request.method,
+                        url=target_url,
+                        headers=proxy_headers,
+                        json=body,
+                        params=request.query_params,
+                    )
+
+                    return Response(
+                        content=response.content,
+                        status_code=response.status_code,
+                        headers=dict(response.headers)
+                    )
+            except Exception as e:
+                logger.error(f"Primary model {primary_model_name} request failed: {str(e)}")
+
+                # Try fallback model if available and not already attempted
+                if custom_endpoint["fallback_model"] and not fallback_attempted:
+                    fallback_attempted = True
+                    fallback_model_name = custom_endpoint["fallback_model"]
+                    logger.warning(f"Trying fallback model {fallback_model_name}")
+
+                    # Update body with fallback model
+                    body["model"] = fallback_model_name
+
+                    # Get provider for fallback model
+                    fallback_provider = get_provider_for_model(fallback_model_name)
+                    if not fallback_provider:
+                        logger.error(f"Fallback model {fallback_model_name} provider not available")
+                        raise HTTPException(status_code=503, detail=f"Both primary and fallback providers are unavailable")
+
+                    # Build fallback URL
+                    fallback_target_url = f"{fallback_provider['base_url']}/v1/{api_path}"
+                    fallback_api_key = fallback_provider.get("api_key")
+
+                    # Prepare fallback headers
+                    fallback_headers = {"Content-Type": "application/json"}
+                    if fallback_api_key:
+                        fallback_headers["Authorization"] = f"Bearer {fallback_api_key}"
+
+                    try:
+                        async with httpx.AsyncClient(timeout=10.0) as fallback_client:
+                            fallback_response = await fallback_client.request(
+                                method=request.method,
+                                url=fallback_target_url,
+                                headers=fallback_headers,
+                                json=body,
+                                params=request.query_params,
+                            )
+
+                            logger.info(f"Fallback model {fallback_model_name} succeeded")
+                            return Response(
+                                content=fallback_response.content,
+                                status_code=fallback_response.status_code,
+                                headers=dict(fallback_response.headers)
+                            )
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback model {fallback_model_name} also failed: {str(fallback_error)}")
+                        raise HTTPException(
+                            status_code=503,
+                            detail=f"Both primary model ({primary_model_name}) and fallback model ({fallback_model_name}) failed"
+                        )
+                else:
+                    # No fallback available or already attempted
+                    raise HTTPException(status_code=503, detail=f"Request failed: {str(e)}")
 
     # Skip auth for health/info endpoints (use fallback URL for backward compatibility)
     if path in ["", "health", "version"]:
@@ -689,4 +830,12 @@ async def add_model_pricing(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=GATEWAY_HOST, port=GATEWAY_PORT)
+
+    gateway_module = os.path.splitext(os.path.basename(__file__))[0]
+    uvicorn.run(
+        f"{gateway_module}:app",
+        host=GATEWAY_HOST,
+        port=GATEWAY_PORT,
+        reload=GATEWAY_RELOAD,
+        reload_dirs=[os.path.dirname(os.path.abspath(__file__))],
+    )

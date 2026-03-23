@@ -77,10 +77,24 @@ export class Database {
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS custom_endpoints (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        endpoint_name TEXT UNIQUE NOT NULL,
+        endpoint_path TEXT UNIQUE NOT NULL,
+        api_key TEXT NOT NULL,
+        primary_model TEXT NOT NULL,
+        fallback_model TEXT,
+        is_active BOOLEAN DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_trace_id ON usage_logs(trace_id);
       CREATE INDEX IF NOT EXISTS idx_created_at ON usage_logs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name);
       CREATE INDEX IF NOT EXISTS idx_providers_active ON llm_providers(is_active);
+      CREATE INDEX IF NOT EXISTS idx_custom_endpoints_path ON custom_endpoints(endpoint_path);
+      CREATE INDEX IF NOT EXISTS idx_custom_endpoints_active ON custom_endpoints(is_active);
     `);
 
     // Check if provider_name column exists in models table
@@ -642,5 +656,111 @@ export class Database {
     return this.db
       .query("SELECT * FROM models WHERE provider_name = ? AND is_active = 1 ORDER BY model_name")
       .all(providerName) as any[];
+  }
+
+  // Custom Endpoint Management
+  createCustomEndpoint(
+    endpointName: string,
+    endpointPath: string,
+    apiKey: string,
+    primaryModel: string,
+    fallbackModel: string | null
+  ) {
+    const info = this.db
+      .query(
+        `INSERT INTO custom_endpoints (endpoint_name, endpoint_path, api_key, primary_model, fallback_model)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(endpointName, endpointPath, apiKey, primaryModel, fallbackModel);
+    return Number(info.lastInsertRowid);
+  }
+
+  getCustomEndpoint(endpointId: number) {
+    const row = this.db.query("SELECT * FROM custom_endpoints WHERE id = ?").get(endpointId) as any;
+    if (!row) return null;
+
+    return {
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+    };
+  }
+
+  getCustomEndpointByPath(endpointPath: string) {
+    const row = this.db
+      .query("SELECT * FROM custom_endpoints WHERE endpoint_path = ? AND is_active = 1")
+      .get(endpointPath) as any;
+    if (!row) return null;
+
+    return {
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+    };
+  }
+
+  getAllCustomEndpoints(includeInactive: boolean = true) {
+    let query = "SELECT * FROM custom_endpoints";
+    if (!includeInactive) {
+      query += " WHERE is_active = 1";
+    }
+    query += " ORDER BY created_at DESC";
+
+    const rows = this.db.query(query).all() as any[];
+
+    return rows.map((row) => ({
+      ...row,
+      api_key_masked: maskApiKey(row.api_key),
+    }));
+  }
+
+  updateCustomEndpoint(
+    endpointId: number,
+    updates: {
+      endpoint_name?: string;
+      endpoint_path?: string;
+      api_key?: string;
+      primary_model?: string;
+      fallback_model?: string | null;
+      is_active?: boolean;
+    }
+  ) {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.endpoint_name !== undefined) {
+      fields.push("endpoint_name = ?");
+      values.push(updates.endpoint_name);
+    }
+    if (updates.endpoint_path !== undefined) {
+      fields.push("endpoint_path = ?");
+      values.push(updates.endpoint_path);
+    }
+    if (updates.api_key !== undefined) {
+      fields.push("api_key = ?");
+      values.push(updates.api_key);
+    }
+    if (updates.primary_model !== undefined) {
+      fields.push("primary_model = ?");
+      values.push(updates.primary_model);
+    }
+    if (updates.fallback_model !== undefined) {
+      fields.push("fallback_model = ?");
+      values.push(updates.fallback_model);
+    }
+    if (updates.is_active !== undefined) {
+      fields.push("is_active = ?");
+      values.push(updates.is_active ? 1 : 0);
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push("updated_at = CURRENT_TIMESTAMP");
+    values.push(endpointId);
+
+    const query = `UPDATE custom_endpoints SET ${fields.join(", ")} WHERE id = ?`;
+    this.db.query(query).run(...values);
+  }
+
+  deleteCustomEndpoint(endpointId: number) {
+    this.db.query("DELETE FROM custom_endpoints WHERE id = ?").run(endpointId);
   }
 }
