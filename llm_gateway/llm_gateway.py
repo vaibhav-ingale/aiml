@@ -328,6 +328,17 @@ async def proxy_all(
 
             logger.info(f"Routing custom endpoint to {target_url} with model {model_name}")
 
+            # Generate trace_id for this request
+            trace_id = str(uuid.uuid4())
+
+            # Generate session_id if not provided in request
+            # Format: endpoint-name-with-dashes-epochmillis
+            if not x_session_id:
+                endpoint_name = custom_endpoint["endpoint_name"].replace(" ", "-").lower()
+                epoch_millis = int(time.time() * 1000)
+                x_session_id = f"{endpoint_name}-{epoch_millis}"
+                logger.debug(f"Auto-generated session_id: {x_session_id}")
+
             # Make the request with fallback support
             primary_model_name = model_name
             fallback_attempted = False
@@ -341,6 +352,88 @@ async def proxy_all(
                         json=body,
                         params=request.query_params,
                     )
+
+                    # Calculate response time
+                    response_time = time.time() - start_time
+
+                    # Parse response to extract tokens
+                    input_tokens = 0
+                    output_tokens = 0
+                    response_data = None
+
+                    try:
+                        response_data = response.json()
+                        if "usage" in response_data:
+                            input_tokens = response_data["usage"].get("prompt_tokens", 0)
+                            output_tokens = response_data["usage"].get("completion_tokens", 0)
+                        else:
+                            # Estimate tokens if not provided
+                            prompt_text = build_prompt_text(body)
+                            input_tokens = count_tokens(prompt_text) if prompt_text else 0
+
+                            # Try to extract output from response
+                            if "choices" in response_data and len(response_data["choices"]) > 0:
+                                choice = response_data["choices"][0]
+                                if "message" in choice and "content" in choice["message"]:
+                                    output_text = choice["message"]["content"]
+                                    output_tokens = count_tokens(output_text) if output_text else 0
+                    except Exception as e:
+                        logger.warning(f"Failed to parse response for token counting: {e}")
+                        prompt_text = build_prompt_text(body)
+                        input_tokens = count_tokens(prompt_text) if prompt_text else 0
+
+                    # Calculate cost
+                    is_error = response.status_code >= 400
+                    cost = 0.0 if is_error else calculate_cost(input_tokens, output_tokens, model_name)
+
+                    # Extract messages for logging
+                    messages = body.get("messages", []) if body else []
+                    system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                    user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+                    assistant_msg = None
+                    assistant_tool_calls = None
+                    tool_name = None
+                    tool_call_type = None
+
+                    if response_data:
+                        # Extract assistant message
+                        if "choices" in response_data and len(response_data["choices"]) > 0:
+                            choice = response_data["choices"][0]
+                            if "message" in choice and "content" in choice["message"]:
+                                assistant_msg = choice["message"]["content"]
+
+                        # Extract tool info
+                        tool_name, tool_call_type, assistant_tool_calls = extract_tool_info(response_data)
+
+                    # Log usage
+                    db.log_usage(
+                        api_key_id=key_info["id"],
+                        user_id=key_info["user_id"],
+                        model_name=model_name,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        response_time=response_time,
+                        cost=cost,
+                        endpoint=custom_endpoint_path,
+                        status="error" if is_error else "success",
+                        error_message=response.text if is_error else None,
+                        trace_id=trace_id,
+                        session_id=x_session_id,
+                        request_payload=json.dumps(body) if body else None,
+                        response_payload=response.text if not is_error else None,
+                        system_message=system_msg,
+                        user_message=user_msg,
+                        assistant_message=assistant_msg,
+                        assistant_tool_calls=assistant_tool_calls,
+                        stream_setting="false",
+                        temperature=body.get("temperature") if body else None,
+                        tool_name=tool_name,
+                        tool_call_type=tool_call_type,
+                    )
+
+                    # Update API key cost
+                    if cost > 0:
+                        db.update_api_key_cost(key_info["id"], cost)
 
                     return Response(
                         content=response.content,
@@ -385,6 +478,89 @@ async def proxy_all(
                             )
 
                             logger.info(f"Fallback model {fallback_model_name} succeeded")
+
+                            # Calculate response time for fallback
+                            fallback_response_time = time.time() - start_time
+
+                            # Parse fallback response to extract tokens
+                            fallback_input_tokens = 0
+                            fallback_output_tokens = 0
+                            fallback_response_data = None
+
+                            try:
+                                fallback_response_data = fallback_response.json()
+                                if "usage" in fallback_response_data:
+                                    fallback_input_tokens = fallback_response_data["usage"].get("prompt_tokens", 0)
+                                    fallback_output_tokens = fallback_response_data["usage"].get("completion_tokens", 0)
+                                else:
+                                    # Estimate tokens if not provided
+                                    prompt_text = build_prompt_text(body)
+                                    fallback_input_tokens = count_tokens(prompt_text) if prompt_text else 0
+
+                                    # Try to extract output from response
+                                    if "choices" in fallback_response_data and len(fallback_response_data["choices"]) > 0:
+                                        choice = fallback_response_data["choices"][0]
+                                        if "message" in choice and "content" in choice["message"]:
+                                            output_text = choice["message"]["content"]
+                                            fallback_output_tokens = count_tokens(output_text) if output_text else 0
+                            except Exception as e:
+                                logger.warning(f"Failed to parse fallback response for token counting: {e}")
+                                prompt_text = build_prompt_text(body)
+                                fallback_input_tokens = count_tokens(prompt_text) if prompt_text else 0
+
+                            # Calculate cost for fallback
+                            fallback_is_error = fallback_response.status_code >= 400
+                            fallback_cost = 0.0 if fallback_is_error else calculate_cost(fallback_input_tokens, fallback_output_tokens, fallback_model_name)
+
+                            # Extract messages for logging
+                            messages = body.get("messages", []) if body else []
+                            system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                            user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+                            assistant_msg = None
+                            assistant_tool_calls = None
+                            tool_name = None
+                            tool_call_type = None
+
+                            if fallback_response_data:
+                                # Extract assistant message
+                                if "choices" in fallback_response_data and len(fallback_response_data["choices"]) > 0:
+                                    choice = fallback_response_data["choices"][0]
+                                    if "message" in choice and "content" in choice["message"]:
+                                        assistant_msg = choice["message"]["content"]
+
+                                # Extract tool info
+                                tool_name, tool_call_type, assistant_tool_calls = extract_tool_info(fallback_response_data)
+
+                            # Log usage for fallback
+                            db.log_usage(
+                                api_key_id=key_info["id"],
+                                user_id=key_info["user_id"],
+                                model_name=fallback_model_name,
+                                input_tokens=fallback_input_tokens,
+                                output_tokens=fallback_output_tokens,
+                                response_time=fallback_response_time,
+                                cost=fallback_cost,
+                                endpoint=custom_endpoint_path,
+                                status="error" if fallback_is_error else "success",
+                                error_message=fallback_response.text if fallback_is_error else None,
+                                trace_id=trace_id,
+                                session_id=x_session_id,
+                                request_payload=json.dumps(body) if body else None,
+                                response_payload=fallback_response.text if not fallback_is_error else None,
+                                system_message=system_msg,
+                                user_message=user_msg,
+                                assistant_message=assistant_msg,
+                                assistant_tool_calls=assistant_tool_calls,
+                                stream_setting="false",
+                                temperature=body.get("temperature") if body else None,
+                                tool_name=tool_name,
+                                tool_call_type=tool_call_type,
+                            )
+
+                            # Update API key cost for fallback
+                            if fallback_cost > 0:
+                                db.update_api_key_cost(key_info["id"], fallback_cost)
+
                             return Response(
                                 content=fallback_response.content,
                                 status_code=fallback_response.status_code,
@@ -392,12 +568,64 @@ async def proxy_all(
                             )
                     except Exception as fallback_error:
                         logger.error(f"Fallback model {fallback_model_name} also failed: {str(fallback_error)}")
+
+                        # Log the fallback failure
+                        fallback_response_time = time.time() - start_time
+                        messages = body.get("messages", []) if body else []
+                        system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                        user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
+                        db.log_usage(
+                            api_key_id=key_info["id"],
+                            user_id=key_info["user_id"],
+                            model_name=fallback_model_name,
+                            input_tokens=0,
+                            output_tokens=0,
+                            response_time=fallback_response_time,
+                            cost=0.0,
+                            endpoint=custom_endpoint_path,
+                            status="error",
+                            error_message=f"Fallback failed: {str(fallback_error)}",
+                            trace_id=trace_id,
+                            session_id=x_session_id,
+                            request_payload=json.dumps(body) if body else None,
+                            system_message=system_msg,
+                            user_message=user_msg,
+                            stream_setting="false",
+                            temperature=body.get("temperature") if body else None,
+                        )
+
                         raise HTTPException(
                             status_code=503,
                             detail=f"Both primary model ({primary_model_name}) and fallback model ({fallback_model_name}) failed"
                         )
                 else:
-                    # No fallback available or already attempted
+                    # No fallback available - log the error
+                    error_response_time = time.time() - start_time
+                    messages = body.get("messages", []) if body else []
+                    system_msg = next((m.get("content") for m in messages if m.get("role") == "system"), None)
+                    user_msg = next((m.get("content") for m in messages if m.get("role") == "user"), None)
+
+                    db.log_usage(
+                        api_key_id=key_info["id"],
+                        user_id=key_info["user_id"],
+                        model_name=primary_model_name,
+                        input_tokens=0,
+                        output_tokens=0,
+                        response_time=error_response_time,
+                        cost=0.0,
+                        endpoint=custom_endpoint_path,
+                        status="error",
+                        error_message=str(e),
+                        trace_id=trace_id,
+                        session_id=x_session_id,
+                        request_payload=json.dumps(body) if body else None,
+                        system_message=system_msg,
+                        user_message=user_msg,
+                        stream_setting="false",
+                        temperature=body.get("temperature") if body else None,
+                    )
+
                     raise HTTPException(status_code=503, detail=f"Request failed: {str(e)}")
 
     # Skip auth for health/info endpoints (use fallback URL for backward compatibility)

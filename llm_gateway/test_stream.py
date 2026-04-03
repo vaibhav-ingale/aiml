@@ -4,11 +4,11 @@ import requests
 
 url = "http://10.0.0.100:8008/v1/chat/completions"
 headers = {
-    "Authorization": "Bearer llmgw-ANCUyGuAKn3-43J4uleD0bRDTvTGRM7b",
+    "Authorization": "Bearer llmgw-ZHXiMOKLVrD-a6roXT1pf-DE1XZFJDjp",
     "Content-Type": "application/json",
 }
 payload = {
-    "model": "openai/gpt-oss-20b",
+    "model": "gemma3:4b",
     "stream": True,
     "messages": [{"role": "user", "content": "Count to 10."}],
 }
