@@ -85,6 +85,8 @@ export class Database {
         temperature REAL,
         tool_call_type TEXT,
         tool_name TEXT,
+        org_id INTEGER,
+        request_time TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
@@ -132,6 +134,8 @@ export class Database {
       ["temperature", "REAL"],
       ["tool_call_type", "TEXT"],
       ["tool_name", "TEXT"],
+      ["org_id", "INTEGER"],
+      ["request_time", "TEXT"],
     ];
     for (const [col, type] of missingLogsCols) {
       if (!logsColumns.has(col)) {

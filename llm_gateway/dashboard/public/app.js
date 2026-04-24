@@ -6,6 +6,7 @@ import { renderAnalytics, afterRenderAnalytics } from "./pages/analytics.js";
 import { renderTraces, afterRenderTraces } from "./pages/traces.js";
 import { renderLlmProvider, afterRenderLlmProvider } from "./pages/llm-provider.js";
 import { renderCustomEndpoints, afterRenderCustomEndpoints } from "./pages/custom-endpoints.js";
+import { renderPlayground, afterRenderPlayground } from "./pages/playground.js";
 
 const routes = {
   dashboard: {
@@ -39,6 +40,10 @@ const routes = {
   "custom-endpoints": {
     render: renderCustomEndpoints,
     afterRender: afterRenderCustomEndpoints,
+  },
+  playground: {
+    render: renderPlayground,
+    afterRender: afterRenderPlayground,
   },
 };
 

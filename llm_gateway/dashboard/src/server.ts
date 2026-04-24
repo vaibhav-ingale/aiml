@@ -438,6 +438,29 @@ const server = Bun.serve({
           return new Response(null, { status: 204 });
         }
 
+        // Playground chat proxy — forwards to the LLM gateway with the user's API key
+        if (pathname === "/api/playground/chat" && req.method === "POST") {
+          const authHeader = req.headers.get("authorization") || "";
+          const sessionHeader = req.headers.get("x-session-id") || "";
+          const gatewayBase = process.env.GATEWAY_URL || `http://localhost:${process.env.GATEWAY_PORT || 8008}`;
+          const upstream = await fetch(`${gatewayBase}/v1/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: authHeader,
+              ...(sessionHeader ? { "X-Session-ID": sessionHeader } : {}),
+            },
+            body: req.body,
+          });
+          return new Response(upstream.body, {
+            status: upstream.status,
+            headers: {
+              "Content-Type": upstream.headers.get("Content-Type") || "application/json",
+              "Cache-Control": "no-cache",
+            },
+          });
+        }
+
         return errorResponse("Not found", 404);
       } catch (error) {
         return errorResponse(error instanceof Error ? error.message : "Server error", 500);

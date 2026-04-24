@@ -94,12 +94,34 @@ class Database:
             )
         """)
 
-        # Check if provider_name column exists in models table, add if missing
+        # Migrate models table
         cursor.execute("PRAGMA table_info(models)")
-        columns = [column[1] for column in cursor.fetchall()]
+        columns = {col[1] for col in cursor.fetchall()}
         if 'provider_name' not in columns:
-            logger.info("Adding provider_name column to models table")
             cursor.execute("ALTER TABLE models ADD COLUMN provider_name TEXT")
+
+        # Migrate usage_logs table — add any columns introduced after initial schema
+        cursor.execute("PRAGMA table_info(usage_logs)")
+        log_columns = {col[1] for col in cursor.fetchall()}
+        for col_name, col_type in [
+            ("trace_id",             "TEXT"),
+            ("session_id",           "TEXT"),
+            ("request_payload",      "TEXT"),
+            ("response_payload",     "TEXT"),
+            ("system_message",       "TEXT"),
+            ("user_message",         "TEXT"),
+            ("assistant_message",    "TEXT"),
+            ("assistant_tool_calls", "TEXT"),
+            ("tool_responses",       "TEXT"),
+            ("stream_setting",       "TEXT"),
+            ("temperature",          "REAL"),
+            ("tool_call_type",       "TEXT"),
+            ("tool_name",            "TEXT"),
+            ("org_id",               "INTEGER"),
+            ("request_time",         "TEXT"),
+        ]:
+            if col_name not in log_columns:
+                cursor.execute(f"ALTER TABLE usage_logs ADD COLUMN {col_name} {col_type}")
 
         # Custom Endpoints table
         cursor.execute("""
