@@ -42,6 +42,10 @@ app.add_middleware(
 )
 
 db = Database()
+
+# Auth cache — avoids a DB lookup on every request
+_API_KEY_CACHE_TTL = int(os.getenv("API_KEY_CACHE_TTL", "30"))  # seconds
+_api_key_cache: Dict[str, tuple] = {}  # api_key -> (key_info, expires_at)
 enc = tiktoken.get_encoding("cl100k_base")
 
 def count_tokens(text: str) -> int:
@@ -121,19 +125,25 @@ def calculate_cost(input_tokens: int, output_tokens: int, model_name: str) -> fl
     return input_cost + output_cost
 
 def verify_api_key(api_key: str) -> Optional[Dict]:
-    """Verify API key and return key info"""
+    """Verify API key and return key info, with TTL cache to avoid per-request DB hits."""
     if not api_key:
         return None
 
+    now = time.monotonic()
+    cached = _api_key_cache.get(api_key)
+    if cached:
+        key_info, expires_at = cached
+        if now < expires_at:
+            return key_info  # None cached means invalid key — also a cache hit
+
     key_info = db.get_api_key_info(api_key)
-    if not key_info:
-        return None
+    result = None
+    if key_info:
+        if not (key_info["cost_limit"] > 0 and key_info["current_cost"] >= key_info["cost_limit"]):
+            result = key_info
 
-    # Check if cost limit exceeded
-    if key_info["cost_limit"] > 0 and key_info["current_cost"] >= key_info["cost_limit"]:
-        return None
-
-    return key_info
+    _api_key_cache[api_key] = (result, now + _API_KEY_CACHE_TTL)
+    return result
 
 def get_provider_for_model(model_name: str) -> Optional[Dict]:
     """
