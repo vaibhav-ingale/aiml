@@ -61,6 +61,8 @@ export class Database {
 
       CREATE TABLE IF NOT EXISTS usage_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trace_id TEXT,
+        session_id TEXT,
         api_key_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         model_name TEXT NOT NULL,
@@ -72,6 +74,17 @@ export class Database {
         endpoint TEXT,
         status TEXT,
         error_message TEXT,
+        request_payload TEXT,
+        response_payload TEXT,
+        system_message TEXT,
+        user_message TEXT,
+        assistant_message TEXT,
+        assistant_tool_calls TEXT,
+        tool_responses TEXT,
+        stream_setting INTEGER,
+        temperature REAL,
+        tool_call_type TEXT,
+        tool_name TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (api_key_id) REFERENCES api_keys(id),
         FOREIGN KEY (user_id) REFERENCES users(id)
@@ -89,22 +102,47 @@ export class Database {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      CREATE INDEX IF NOT EXISTS idx_trace_id ON usage_logs(trace_id);
       CREATE INDEX IF NOT EXISTS idx_created_at ON usage_logs(created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name);
       CREATE INDEX IF NOT EXISTS idx_providers_active ON llm_providers(is_active);
       CREATE INDEX IF NOT EXISTS idx_custom_endpoints_path ON custom_endpoints(endpoint_path);
       CREATE INDEX IF NOT EXISTS idx_custom_endpoints_active ON custom_endpoints(is_active);
     `);
 
-    // Check if provider_name column exists in models table
-    const tableInfo = this.db.query("PRAGMA table_info(models)").all() as any[];
-    const hasProviderColumn = tableInfo.some(col => col.name === "provider_name");
-
-    if (!hasProviderColumn) {
-      console.log("Adding provider_name column to models table");
+    // Migrate models table
+    const modelsInfo = this.db.query("PRAGMA table_info(models)").all() as any[];
+    const modelsColumns = new Set(modelsInfo.map((col: any) => col.name));
+    if (!modelsColumns.has("provider_name")) {
       this.db.exec("ALTER TABLE models ADD COLUMN provider_name TEXT");
     }
+
+    // Migrate usage_logs table
+    const logsInfo = this.db.query("PRAGMA table_info(usage_logs)").all() as any[];
+    const logsColumns = new Set(logsInfo.map((col: any) => col.name));
+    const missingLogsCols: [string, string][] = [
+      ["trace_id", "TEXT"],
+      ["session_id", "TEXT"],
+      ["request_payload", "TEXT"],
+      ["response_payload", "TEXT"],
+      ["system_message", "TEXT"],
+      ["user_message", "TEXT"],
+      ["assistant_message", "TEXT"],
+      ["assistant_tool_calls", "TEXT"],
+      ["tool_responses", "TEXT"],
+      ["stream_setting", "INTEGER"],
+      ["temperature", "REAL"],
+      ["tool_call_type", "TEXT"],
+      ["tool_name", "TEXT"],
+    ];
+    for (const [col, type] of missingLogsCols) {
+      if (!logsColumns.has(col)) {
+        this.db.exec(`ALTER TABLE usage_logs ADD COLUMN ${col} ${type}`);
+      }
+    }
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_trace_id ON usage_logs(trace_id);
+      CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_name);
+    `);
   }
 
   createUser(username: string) {
