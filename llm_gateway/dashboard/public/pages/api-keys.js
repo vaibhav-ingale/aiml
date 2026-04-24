@@ -71,14 +71,15 @@ export async function afterRenderApiKeys() {
     const rows = keys.map((key) => {
       const usage = key.cost_limit > 0 ? (key.current_cost / key.cost_limit) * 100 : 0;
       const statusLabel = key.is_active ? "Active" : "Inactive (Locked)";
+      const copyBtn = `<button class="secondary btn-sm" data-action="copy" data-key="${key.api_key}" title="Copy API key"><i class="fa-solid fa-copy"></i></button>`;
       const actions = key.is_active
         ? `<div class="button-row">
-          <button class="secondary" data-action="toggle" data-id="${key.id}" data-active="true">
-            Disable
-          </button>
+          ${copyBtn}
+          <button class="secondary" data-action="toggle" data-id="${key.id}" data-active="true">Disable</button>
           <button class="danger" data-action="delete" data-id="${key.id}">Delete</button>
         </div>`
         : `<div class="button-row">
+          ${copyBtn}
           <button class="danger" data-action="delete" data-id="${key.id}">Delete</button>
         </div>`;
       return [
@@ -105,6 +106,17 @@ export async function afterRenderApiKeys() {
         actionNotice.style.display = "none";
         actionNotice.classList.remove("error");
         try {
+          if (action === "copy") {
+            await navigator.clipboard.writeText(button.dataset.key);
+            const icon = button.querySelector("i");
+            icon.className = "fa-solid fa-check";
+            button.style.color = "#10b981";
+            setTimeout(() => {
+              icon.className = "fa-solid fa-copy";
+              button.style.color = "";
+            }, 1500);
+            return;
+          }
           if (action === "delete") {
             if (!window.confirm("Delete this API key?")) return;
             await api(`api-keys/${id}`, { method: "DELETE" });
